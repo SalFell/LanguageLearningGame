@@ -12,7 +12,8 @@
   const mk = (id, name, extra) => Object.assign({ id, name, progress: { learned: {}, steps: {}, score: 0 }, settings: defaultSettings() }, extra);
 
   const CFG = root.GAME_CONFIG || {};
-  const remote = () => typeof CFG.apiUrl === "string" && (CFG.apiUrl !== "" || /^https?:/.test(root.location.protocol));
+  let backendDown = false; // set when the API isn't reachable (e.g. page served by a plain static server)
+  const remote = () => !backendDown && typeof CFG.apiUrl === "string" && (CFG.apiUrl !== "" || /^https?:/.test(root.location.protocol));
   const TOKEN = "llg_token";
   async function call(method, path, body) {
     const t = localStorage.getItem(TOKEN);
@@ -83,6 +84,7 @@
       return adopt(await call("POST", "/api/oauth", { provider, token: t.token, name: t.name }));
     },
     remote,
+    async probe() { if (!remote()) return; try { const r = await fetch(CFG.apiUrl + "/api/leaderboard"); if (!r.ok || !(await r.json()).leaderboard) backendDown = true; } catch (e) { backendDown = true; } },
     logout() { localStorage.removeItem(SESSION); localStorage.removeItem(TOKEN); },
     update(fn) { const u = this.current(); if (!u) return; const db = load(); fn(db.users[u.id]); save(db); if (remote() && localStorage.getItem(TOKEN)) push(db.users[u.id]); },
     async resetProgress() { this.update((u) => { u.progress = { learned: {}, steps: {}, score: 0 }; }); if (remote()) { clearTimeout(pushTimer); try { await call("DELETE", "/api/me/progress"); } catch (e) { /* offline */ } } },

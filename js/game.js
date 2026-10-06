@@ -134,6 +134,13 @@
       box.appendChild(b);
     }
   }
+  // Google calls this when the key is rejected (e.g. ApiNotActivatedMapError): fall back to the offline scene.
+  window.gm_authFailure = () => {
+    console.warn("Google Maps rejected the API key; using the offline street scene. Enable 'Maps JavaScript API' (and billing) for the key's project.");
+    svReady = false; CFG.googleMapsApiKey = "";
+    $("pano").style.display = "none"; $("scene").style.display = ""; $("scene").style.background = "";
+    $("sky").style.display = $("ground").style.display = ""; renderObjects();
+  };
   function loadMaps() {
     if (!CFG.googleMapsApiKey) return Promise.resolve(false);
     if (window.google && google.maps && google.maps.importLibrary) return Promise.resolve(true);
@@ -196,5 +203,5 @@
   });
   $("gear").onclick = () => state === "playing" && pauseMenu();
   addEventListener("resize", renderObjects);
-  applySettings(); mainMenu(); A.refresh().then(() => { applySettings(); if (state === "menu") mainMenu(); });
+  applySettings(); mainMenu(); A.probe().then(() => A.refresh()).then(() => { applySettings(); if (state === "menu") mainMenu(); });
 })();
