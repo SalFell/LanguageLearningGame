@@ -10,20 +10,14 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 #objects{position:absolute;inset:0}
 #scene,#objects{pointer-events:none}
 #world{cursor:grab}
-.obj{pointer-events:auto;position:absolute;transform:translate(-50%,-100%);background:none;border:0;cursor:pointer;line-height:1;padding:0;filter:grayscale(1)}
-.obj.learned{filter:none}
-#pano,#scene #sky,#scene #ground{filter:grayscale(1)}
+.obj{pointer-events:auto;position:absolute;transform:translate(-50%,-100%);background:none;border:0;cursor:pointer;line-height:1;padding:0}
 #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px;z-index:7;pointer-events:none}
 #hud>*{pointer-events:auto}
 #hud{gap:8px}#score{margin-right:auto}
 #score{background:#000a;padding:6px 12px;border-radius:12px}
 #gear{font-size:28px;background:#000a;color:#fff;border:0;border-radius:50%;width:48px;height:48px;cursor:pointer}
-#touch{position:fixed;bottom:16px;left:16px;display:grid;grid-template-columns:repeat(3,56px);grid-template-areas:". w ." "a s d";gap:6px;z-index:5}
-#touch button{width:56px;height:56px;border-radius:12px;border:0;background:#000a;color:#fff;font-size:20px}
-#touch [data-key=w]{grid-area:w}#touch [data-key=a]{grid-area:a}#touch [data-key=s]{grid-area:s}#touch [data-key=d]{grid-area:d}
 #overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:10;padding:12px}
-#overlay[hidden],#hud[hidden],#touch[hidden]{display:none}
-#panel{background:#222;border-radius:16px;padding:22px;width:min(440px,100%);max-height:100%;overflow:auto;text-align:center}
+#overlay[hidden],#hud[hidden],#panel{background:#222;border-radius:16px;padding:22px;width:min(440px,100%);max-height:100%;overflow:auto;text-align:center}
 #panel h1,#panel h2{margin-top:0}
 #panel button,#panel select,#panel input{display:block;width:100%;margin:8px 0;padding:12px;font-size:1em;border-radius:10px;border:2px solid #666;background:#333;color:#fff}
 #panel button{cursor:pointer;background:#3b6fd6;border-color:#3b6fd6;font-weight:700}
@@ -35,8 +29,8 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid #444;text-align:left}td:last-child{text-align:right}
 #sky{background-image:repeating-linear-gradient(90deg,#0003 0 60px,#0000 60px 90px),linear-gradient(#5aa9ff,#cfe8ff)}
 #globe{position:fixed;inset:0;z-index:6;background:#000}
-#globeMap{position:absolute;inset:0;filter:grayscale(1)}
-#globeBar{position:absolute;top:0;left:0;right:0;display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 70px 10px 10px;background:#000a;z-index:1}
+#globeMap{position:absolute;inset:0}
+#globeBar{position:absolute;top:68px;left:10px;right:10px;border-radius:12px;display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px;background:#000a;z-index:1}
 #globeBar button{padding:10px 14px;border-radius:10px;border:0;background:#3b6fd6;color:#fff;font-weight:700;cursor:pointer}
 #globe[hidden],#toast[hidden]{display:none}
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#000c;padding:10px 16px;border-radius:12px;z-index:9;max-width:90%}

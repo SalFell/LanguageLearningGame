@@ -4,7 +4,7 @@
   const panel = $("panel"), overlay = $("overlay");
   const guest = { progress: W.newProgress(), settings: { highContrast: false, largeText: false, reduceMotion: false, lang: "es" } };
   let state = "menu"; // menu | playing | paused | learning
-  let loc = { key: "0,0", heading: 0 }, sv = null, svReady = false, lastMove = 0;
+  let loc = { key: "0,0", heading: 0 }, sv = null, svReady = false;
 
   const user = () => A.current();
   const progress = () => (user() || guest).progress;
@@ -23,11 +23,10 @@
   function langSelect(id, cur) {
     return `<select id="${id}" aria-label="Language">${Object.entries(W.LANGUAGES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${v}</option>`).join("")}</select>`;
   }
-  const anyLearned = (id) => Object.keys(W.LANGUAGES).some((l) => W.isLearned(progress(), id, l));
 
   /* ---------- menus ---------- */
   function mainMenu() {
-    state = "menu"; $("hud").hidden = true; $("touch").hidden = true; $("globe").hidden = true;
+    state = "menu"; $("hud").hidden = true; $("globe").hidden = true;
     show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>`);
     $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); $("lb").onclick = () => leaderboard(mainMenu);
   }
@@ -149,7 +148,7 @@
       const rel = ((bearing - loc.heading + 540) % 360) - 180;
       if (Math.abs(rel) > FOV / 2) continue;
       const b = document.createElement("button");
-      b.className = "obj" + (anyLearned(o.id) ? " learned" : "");
+      b.className = "obj";
       b.textContent = o.e; b.setAttribute("aria-label", o.en.w);
       b.style.left = (50 + (rel / FOV) * 100) + "%"; b.style.top = (55 + depth * 35) + "%";
       b.style.fontSize = Math.max(32, Math.min(w, h) * 0.18 * depth) + "px";
@@ -176,7 +175,7 @@
   }
   const CITIES = [[35.6595, 139.7005], [40.4168, -3.7038], [51.5074, -0.1278], [19.4326, -99.1332], [34.6937, 135.5023], [41.3851, 2.1734], [40.7128, -74.006], [-34.6037, -58.3816]];
   async function startGame() {
-    hide(); state = "playing"; $("hud").hidden = false; $("touch").hidden = false;
+    hide(); state = "playing"; $("hud").hidden = false;
     $("score").textContent = progress().score + " pts";
     loc = { key: Math.floor(Math.random() * 1e6) + "," + Math.floor(Math.random() * 1e6), heading: Math.random() * 360 };
     $("pano").style.display = "none"; $("scene").style.display = ""; svReady = false;
@@ -191,7 +190,7 @@
     return new Promise((res) => new google.maps.StreetViewService().getPanorama({ location: pos, radius }, (data, status) => {
       if (status !== "OK") return res(false);
       $("pano").style.display = ""; $("scene").style.background = "none"; $("sky").style.display = $("ground").style.display = "none";
-      sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: false, scrollwheel: false, linksControl: false, disableDoubleClickZoom: true, zoom: 1 });
+      sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: true, linksControl: true, panControl: true, zoomControl: true, addressControl: false, fullscreenControl: false, enableCloseButton: false, keyboardShortcuts: true, scrollwheel: false, disableDoubleClickZoom: true, zoom: 1 });
       sv.setPano(data.location.pano); sv.setPov({ heading: loc.heading, pitch: 0 }); svReady = true;
       loc.key = data.location.pano; renderObjects();
       if (!sv.__bound) { sv.__bound = true; sv.addListener("pano_changed", () => { loc.key = sv.getPano(); renderObjects(); }); sv.addListener("pov_changed", () => { loc.heading = (sv.getPov().heading + 360) % 360; renderObjects(); }); }
@@ -233,38 +232,12 @@
     if (wheelAcc > 250) { wheelAcc = 0; openGlobe(); } else if (wheelAcc < -250) wheelAcc = 0;
   }, { passive: true });
   $("globeBtn").onclick = openGlobe; $("globeBack").onclick = closeGlobe;
-  function turn(d) {
-    loc.heading = (loc.heading + d + 360) % 360;
-    if (svReady) sv.setPov({ heading: loc.heading, pitch: 0 });
-    renderObjects();
-  }
-  function move(dir) {
-    const now = Date.now(); if (now - lastMove < 350) return; lastMove = now;
-    const h = (loc.heading + (dir < 0 ? 180 : 0)) % 360;
-    if (svReady) {
-      const links = (sv.getLinks() || []).map((l) => ({ l, d: Math.abs(((l.heading - h + 540) % 360) - 180) })).sort((a, b) => a.d - b.d);
-      if (links[0] && links[0].d < 60) sv.setPano(links[0].l.pano);
-    } else {
-      const [x, z] = loc.key.split(",").map(Number), r = (h * Math.PI) / 180;
-      loc.key = x + Math.round(Math.sin(r) * 3) + "," + (z + Math.round(Math.cos(r) * 3)); renderObjects();
-    }
-  }
-  function press(k) {
-    if (state !== "playing") return;
-    if (k === "w") move(1); else if (k === "s") move(-1); else if (k === "a") turn(-10); else if (k === "d") turn(10);
-  }
   addEventListener("keydown", (e) => {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
     if (k === "escape" && state === "globe") closeGlobe();
     else if (k === "tab") { e.preventDefault(); if (state === "playing" || state === "globe") { closeGlobe(); state = "playing"; pauseMenu(); } else if (state === "paused") resume(); }
     else if (k === "g" && state === "playing") openGlobe();
-    else press(k);
-  });
-  document.querySelectorAll("#touch button").forEach((b) => {
-    let t; const stop = () => clearInterval(t);
-    b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(b.dataset.key); t = setInterval(() => press(b.dataset.key), 120); });
-    ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
   });
   /* ---------- camera + selection box ---------- */
   // Left-drag rotates the camera (natively in Street View, manually in the offline scene).
