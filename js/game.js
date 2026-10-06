@@ -55,16 +55,19 @@
     if (u) {
       show(`<h2>Account</h2><p>Signed in as <b>${esc(u.name)}</b> (${esc(u.id)})<br>Score: ${u.progress.score}</p><button id="out">Sign out</button><button id="rp" class="danger">Delete game progress</button><button id="da" class="danger">Delete account</button><p class="msg" id="msg"></p><button id="back" class="secondary">Back</button>`);
       $("out").onclick = () => { A.logout(); applySettings(); accountMenu(back); };
-      $("rp").onclick = () => { if (confirm("Delete all game progress?")) { A.resetProgress(); accountMenu(back); } };
-      $("da").onclick = () => { if (confirm("Permanently delete this account?")) { A.deleteAccount(); applySettings(); accountMenu(back); } };
+      $("rp").onclick = () => { if (confirm("Delete all game progress?")) { A.resetProgress().then(() => accountMenu(back)); } };
+      $("da").onclick = () => { if (confirm("Permanently delete this account?")) { A.deleteAccount().then(() => { applySettings(); accountMenu(back); }).catch((e) => ($("msg").textContent = e.message)); } };
     } else {
       show(`<h2>Account</h2><input id="em" type="email" placeholder="Email" autocomplete="email"><input id="pw" type="password" placeholder="Password (6+ chars)" autocomplete="current-password"><button id="login">Sign in</button><button id="reg" class="secondary">Create account</button><p class="msg" id="msg"></p><button data-p="google" class="secondary">Continue with Google</button><button data-p="apple" class="secondary">Continue with Apple</button><button data-p="amazon" class="secondary">Continue with Amazon</button><button id="back" class="secondary">Back</button>`);
       const run = (fn) => async () => { try { await fn(); applySettings(); accountMenu(back); } catch (e) { $("msg").textContent = e.message; } };
       $("login").onclick = run(() => A.login($("em").value, $("pw").value));
       $("reg").onclick = run(() => A.register($("em").value, $("pw").value));
-      panel.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => {
-        const n = prompt("Display name for your " + b.dataset.p + " profile (demo sign-in stored on this device):");
-        if (n && n.trim()) { A.socialLogin(b.dataset.p, n); applySettings(); accountMenu(back); }
+      panel.querySelectorAll("[data-p]").forEach((b) => (b.onclick = async () => {
+        try {
+          if (A.remote()) await A.oauthLogin(b.dataset.p);
+          else { const n = prompt("Display name for your " + b.dataset.p + " profile (offline demo, stored on this device):"); if (!n || !n.trim()) return; A.socialLogin(b.dataset.p, n); }
+          applySettings(); accountMenu(back);
+        } catch (e) { $("msg").textContent = e.message; }
       }));
     }
     $("back").onclick = back;
@@ -88,7 +91,7 @@
     const complete = (step, next) => {
       let newly = false;
       persist((u) => { newly = W.completeStep(u.progress || u, obj.id, lang, step); });
-      if (newly) { $("score").textContent = progress().score + " pts"; renderObjects(); A.submitScore(progress().score); }
+      if (newly) { $("score").textContent = progress().score + " pts"; renderObjects(); }
       next(newly);
     };
     if (done) { show(`${head}<h2>${esc(t.w)}</h2><p class="ok">✔ Learned! (+${W.POINTS_PER_WORD} pts)</p>${close}`); return wire(); }
@@ -192,5 +195,5 @@
   });
   $("gear").onclick = () => state === "playing" && pauseMenu();
   addEventListener("resize", renderObjects);
-  applySettings(); mainMenu();
+  applySettings(); mainMenu(); A.refresh().then(() => { applySettings(); if (state === "menu") mainMenu(); });
 })();
