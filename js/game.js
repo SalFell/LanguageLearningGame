@@ -266,28 +266,49 @@
     b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(b.dataset.key); t = setInterval(() => press(b.dataset.key), 120); });
     ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
   });
-  /* ---------- click vs. drag on the world ---------- */
-  // Dragging rotates the camera (natively in Street View, manually in the offline scene); a click identifies the object.
-  let down = null, busy = false;
-  const wd = $("world");
-  wd.addEventListener("pointerdown", (e) => { if (e.target.closest(".obj,.spot")) return; down = { x: e.clientX, y: e.clientY, lx: e.clientX, moved: false }; }, true);
-  wd.addEventListener("pointermove", (e) => {
-    if (!down || state !== "playing") return;
-    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) down.moved = true;
-    if (down.moved && !svReady) { loc.heading = (loc.heading - (e.clientX - down.lx) * 0.2 + 360) % 360; renderObjects(); }
-    down.lx = e.clientX;
+  /* ---------- camera + selection box ---------- */
+  // Left-drag rotates the camera (natively in Street View, manually in the offline scene).
+  // Right-drag (or the 🔍 select toggle for touch/trackpads) draws a box around the object to identify.
+  let down = null, busy = false, selectMode = false, sel = null;
+  const wd = $("world"), selBox = $("selbox");
+  const inBox = (e) => { const r = wd.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)) }; };
+  const wantsSelect = (e) => e.button === 2 || selectMode;
+  function paintSel() {
+    const x0 = Math.min(sel.a.x, sel.b.x), x1 = Math.max(sel.a.x, sel.b.x), y0 = Math.min(sel.a.y, sel.b.y), y1 = Math.max(sel.a.y, sel.b.y);
+    Object.assign(selBox.style, { left: x0 * 100 + "%", top: y0 * 100 + "%", width: (x1 - x0) * 100 + "%", height: (y1 - y0) * 100 + "%" });
+    return { x0, y0, x1, y1 };
+  }
+  wd.addEventListener("contextmenu", (e) => e.preventDefault());
+  wd.addEventListener("pointerdown", (e) => {
+    if (state !== "playing" || e.target.closest(".obj,.spot")) return;
+    if (wantsSelect(e) && svReady) {
+      e.preventDefault(); e.stopPropagation(); wd.setPointerCapture(e.pointerId);
+      sel = { a: inBox(e), b: inBox(e) }; selBox.hidden = false; paintSel(); return;
+    }
+    if (e.button === 0) down = { lx: e.clientX };
   }, true);
-  wd.addEventListener("pointerup", (e) => { const d = down; down = null; if (d && !d.moved && state === "playing" && svReady) identifyAt(e.clientX, e.clientY); }, true);
-  wd.addEventListener("pointercancel", () => (down = null), true);
-  async function identifyAt(x, y) {
+  wd.addEventListener("pointermove", (e) => {
+    if (sel) { e.stopPropagation(); sel.b = inBox(e); paintSel(); return; }
+    if (down && state === "playing" && !svReady) { loc.heading = (loc.heading - (e.clientX - down.lx) * 0.2 + 360) % 360; renderObjects(); }
+    if (down) down.lx = e.clientX;
+  }, true);
+  wd.addEventListener("pointerup", (e) => {
+    down = null;
+    if (!sel) return;
+    e.stopPropagation(); const box = paintSel(); sel = null; selBox.hidden = true;
+    if (box.x1 - box.x0 < 0.03 || box.y1 - box.y0 < 0.03) return flash("Drag a larger box around the object.");
+    identifyBox(box);
+  }, true);
+  wd.addEventListener("pointercancel", () => { down = null; sel = null; selBox.hidden = true; }, true);
+  $("selectBtn").onclick = () => { selectMode = !selectMode; $("selectBtn").classList.toggle("on", selectMode); document.body.classList.toggle("selecting", selectMode); flash(selectMode ? "Select mode: drag a box around an object" : "Select mode off"); };
+  async function identifyBox(box) {
     if (busy || !window.Vision) return; busy = true;
     const r = wd.getBoundingClientRect(), pov = sv.getPov(), pano = sv.getPano();
-    const fx = (x - r.left) / r.width, fy = (y - r.top) / r.height;
     flash("🔍 Identifying…", 20000);
     try {
-      const res = await Vision.identify({ pano, heading: pov.heading, pitch: pov.pitch, fx, fy, aspect: r.width / r.height });
-      const obj = W.fromWords(res.words, res.thumb);
-      obj.spot = { pano, heading: (pov.heading + Math.atan((fx - 0.5) * 2) / rad + 360) % 360, pitch: pov.pitch + Math.atan(-(fy - 0.5) * 2 * (r.height / r.width)) / rad };
+      const res = await Vision.identify({ pano, heading: pov.heading, pitch: pov.pitch, box, aspect: r.width / r.height });
+      const obj = W.fromWords(res.words, res.thumb), cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+      obj.spot = { pano, heading: (pov.heading + Math.atan((cx - 0.5) * 2) / rad + 360) % 360, pitch: pov.pitch + Math.atan(-(cy - 0.5) * 2 * (r.height / r.width)) / rad };
       $("toast").hidden = true;
       if (state === "playing") learn(obj, settings().lang);
     } catch (err) { flash("Couldn't identify that: " + err.message, 6000); }
