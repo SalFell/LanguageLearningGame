@@ -45,9 +45,19 @@
   function seededRandom(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function hash(str) { let h = 2166136261; for (const c of String(str)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
   function options(obj, lang, rnd) {
-    const others = OBJECTS.filter((o) => o.id !== obj.id).sort(() => rnd() - 0.5).slice(0, 3);
+    const others = OBJECTS.filter((o) => o.id !== obj.id && norm(o[lang].w) !== norm(obj[lang].w)).sort(() => rnd() - 0.5).slice(0, 3);
     return [obj, ...others].sort(() => rnd() - 0.5).map((o) => o[lang].w);
   }
-  const api = { LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
+  // Build a learnable object from an identified English word and its translations. Reuses a built-in object when one matches.
+  const TEMPLATES = { en: "Look at the {}.", es: "Mira: {}.", ja: "{}を見てください。" };
+  function fromWords(words, thumb) {
+    const en = norm(words.en);
+    const known = OBJECTS.find((o) => norm(o.en.w) === en);
+    if (known) return Object.assign({}, known, { thumb });
+    const o = { id: "x_" + (en.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "thing"), e: "📷", thumb, dynamic: true };
+    for (const l of Object.keys(LANGUAGES)) o[l] = { w: norm(words[l] || words.en), s: TEMPLATES[l] };
+    return o;
+  }
+  const api = { fromWords, LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
   if (typeof module !== "undefined") module.exports = api; else root.Words = api;
 })(typeof window !== "undefined" ? window : globalThis);

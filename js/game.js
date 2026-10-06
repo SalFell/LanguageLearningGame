@@ -84,13 +84,14 @@
     state = "learning";
     const p = progress(), t = obj[lang];
     const done = W.isLearned(p, obj.id, lang);
-    const head = `${langSelect("lang", lang)}<div class="big">${obj.e}</div>`;
+    const head = `${langSelect("lang", lang)}${obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`}`;
     const bind = () => { $("lang").onchange = () => learn(obj, $("lang").value); };
     const close = `<button id="close" class="secondary">Close</button>`;
     const wire = () => { bind(); $("close").onclick = () => { hide(); state = "playing"; }; };
     const complete = (step, next) => {
       let newly = false;
       persist((u) => { newly = W.completeStep(u.progress || u, obj.id, lang, step); });
+      if (newly && obj.spot) Spots.add(Object.assign({ words: { en: obj.en.w, es: obj.es.w, ja: obj.ja.w }, thumb: obj.thumb }, obj.spot));
       if (newly) { $("score").textContent = progress().score + " pts"; renderObjects(); }
       next(newly);
     };
@@ -105,8 +106,8 @@
       show(`${head}<h2>${esc(t.w)}</h2><small>${mark}</small>${choices("<p>Which word means this object?</p>", "msg")}${close}`); wire();
       panel.querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => (b.dataset.o === t.w ? complete("recognize", finish) : ($("msg").textContent = "Try again!"))));
     } else if (stage === "spell") {
-      show(`${head}<small>${mark}</small><p>Type the word for this object${lang === "ja" ? " (kana or romaji)" : ""}. Hint: <b>${esc(t.w[0])}</b> + ${[...t.w].length - 1} more</p><input id="ans" autocomplete="off" autocapitalize="off"><button id="chk">Check</button><p class="msg" id="msg"></p>${close}`); wire();
-      const chk = () => (W.checkSpelling(obj, lang, $("ans").value) ? complete("spell", finish) : ($("msg").textContent = "Not quite — it was " + t.w + (lang === "ja" ? " (" + t.r + ")" : "") + ". Try again!"));
+      show(`${head}<small>${mark}</small><p>Type the word for this object${lang === "ja" && t.r ? " (kana or romaji)" : ""}. ${lang === "ja" && !t.r ? "Type it exactly: <b>" + esc(t.w) + "</b>" : "Hint: <b>" + esc(t.w[0]) + "</b> + " + ([...t.w].length - 1) + " more"}</p><input id="ans" autocomplete="off" autocapitalize="off"><button id="chk">Check</button><p class="msg" id="msg"></p>${close}`); wire();
+      const chk = () => (W.checkSpelling(obj, lang, $("ans").value) ? complete("spell", finish) : ($("msg").textContent = "Not quite — it was " + t.w + (t.r ? " (" + t.r + ")" : "") + ". Try again!"));
       $("chk").onclick = chk; $("ans").onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") chk(); };
     } else {
       show(`${head}<small>${mark}</small>${choices(`<p>Complete the sentence:</p><h3>${esc(W.fillSentence(obj, lang))}</h3>`, "msg")}${close}`); wire();
@@ -116,9 +117,31 @@
 
   /* ---------- world ---------- */
   const FOV = 100;
+  const Spots = {
+    key: () => "llg_spots_" + (user() ? user().id : "guest"),
+    all() { try { return JSON.parse(localStorage.getItem(this.key())) || []; } catch (e) { return []; } },
+    add(s) { const a = this.all(); if (a.some((x) => x.pano === s.pano && x.words.en === s.words.en && Math.abs(x.heading - s.heading) < 10)) return; a.push(s); try { localStorage.setItem(this.key(), JSON.stringify(a.slice(-100))); } catch (e) { /* storage full */ } },
+  };
+  const tan = Math.tan, rad = Math.PI / 180;
+  function renderSpots(box) {
+    const w = innerWidth, h = innerHeight, pitch = svReady ? sv.getPov().pitch : 0;
+    for (const s of Spots.all()) {
+      if (s.pano !== loc.key) continue;
+      const rel = ((s.heading - loc.heading + 540) % 360) - 180;
+      if (Math.abs(rel) > 80) continue;
+      const x = 0.5 + tan(rel * rad) / 2, y = 0.5 - (tan((s.pitch - pitch) * rad) / 2) * (w / h);
+      const b = document.createElement("button");
+      b.className = "spot"; b.setAttribute("aria-label", s.words.en);
+      b.style.left = x * 100 + "%"; b.style.top = y * 100 + "%";
+      b.innerHTML = `<img alt="" src="${s.thumb}">`;
+      b.onclick = () => state === "playing" && learn(W.fromWords(s.words, s.thumb), settings().lang);
+      box.appendChild(b);
+    }
+  }
   function renderObjects() {
     const box = $("objects"), r = W.seededRandom(W.hash(loc.key));
     box.innerHTML = "";
+    if (svReady) return renderSpots(box);
     $("sky").style.backgroundPositionX = -loc.heading * 4 + "px";
     const count = 5 + Math.floor(r() * 3), h = innerHeight, w = innerWidth;
     for (let i = 0; i < count; i++) {
@@ -168,10 +191,10 @@
     return new Promise((res) => new google.maps.StreetViewService().getPanorama({ location: pos, radius }, (data, status) => {
       if (status !== "OK") return res(false);
       $("pano").style.display = ""; $("scene").style.background = "none"; $("sky").style.display = $("ground").style.display = "none";
-      sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: false, scrollwheel: false, linksControl: false });
+      sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: false, scrollwheel: false, linksControl: false, disableDoubleClickZoom: true, zoom: 1 });
       sv.setPano(data.location.pano); sv.setPov({ heading: loc.heading, pitch: 0 }); svReady = true;
       loc.key = data.location.pano; renderObjects();
-      if (!sv.__bound) { sv.__bound = true; sv.addListener("pano_changed", () => { loc.key = sv.getPano(); renderObjects(); }); }
+      if (!sv.__bound) { sv.__bound = true; sv.addListener("pano_changed", () => { loc.key = sv.getPano(); renderObjects(); }); sv.addListener("pov_changed", () => { loc.heading = (sv.getPov().heading + 360) % 360; renderObjects(); }); }
       res(true);
     }));
   }
@@ -202,7 +225,7 @@
     $("globeMsg").textContent = "No Street View coverage near there. Try another spot!";
   }
   let flashTimer = null;
-  function flash(t) { const m = $("toast"); m.textContent = t; m.hidden = false; clearTimeout(flashTimer); flashTimer = setTimeout(() => (m.hidden = true), 3000); }
+  function flash(t, ms) { const m = $("toast"); m.textContent = t; m.hidden = false; clearTimeout(flashTimer); flashTimer = setTimeout(() => (m.hidden = true), ms || 3000); }
   let wheelAcc = 0;
   addEventListener("wheel", (e) => {
     if (state !== "playing" || !overlay.hidden) return;
@@ -243,6 +266,33 @@
     b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(b.dataset.key); t = setInterval(() => press(b.dataset.key), 120); });
     ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
   });
+  /* ---------- click vs. drag on the world ---------- */
+  // Dragging rotates the camera (natively in Street View, manually in the offline scene); a click identifies the object.
+  let down = null, busy = false;
+  const wd = $("world");
+  wd.addEventListener("pointerdown", (e) => { if (e.target.closest(".obj,.spot")) return; down = { x: e.clientX, y: e.clientY, lx: e.clientX, moved: false }; }, true);
+  wd.addEventListener("pointermove", (e) => {
+    if (!down || state !== "playing") return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) down.moved = true;
+    if (down.moved && !svReady) { loc.heading = (loc.heading - (e.clientX - down.lx) * 0.2 + 360) % 360; renderObjects(); }
+    down.lx = e.clientX;
+  }, true);
+  wd.addEventListener("pointerup", (e) => { const d = down; down = null; if (d && !d.moved && state === "playing" && svReady) identifyAt(e.clientX, e.clientY); }, true);
+  wd.addEventListener("pointercancel", () => (down = null), true);
+  async function identifyAt(x, y) {
+    if (busy || !window.Vision) return; busy = true;
+    const r = wd.getBoundingClientRect(), pov = sv.getPov(), pano = sv.getPano();
+    const fx = (x - r.left) / r.width, fy = (y - r.top) / r.height;
+    flash("🔍 Identifying…", 20000);
+    try {
+      const res = await Vision.identify({ pano, heading: pov.heading, pitch: pov.pitch, fx, fy, aspect: r.width / r.height });
+      const obj = W.fromWords(res.words, res.thumb);
+      obj.spot = { pano, heading: (pov.heading + Math.atan((fx - 0.5) * 2) / rad + 360) % 360, pitch: pov.pitch + Math.atan(-(fy - 0.5) * 2 * (r.height / r.width)) / rad };
+      $("toast").hidden = true;
+      if (state === "playing") learn(obj, settings().lang);
+    } catch (err) { flash("Couldn't identify that: " + err.message, 6000); }
+    busy = false;
+  }
   $("gear").onclick = () => { if (state === "globe") closeGlobe(); if (state === "playing") pauseMenu(); };
   addEventListener("resize", renderObjects);
   applySettings(); mainMenu(); A.probe().then(() => A.refresh()).then(() => { applySettings(); if (state === "menu") mainMenu(); });

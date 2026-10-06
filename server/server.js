@@ -82,8 +82,8 @@ const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript
 // Basic sanitizers so clients can't store arbitrary junk.
 function cleanProgress(p) {
   const out = emptyProgress(); if (!p || typeof p !== "object") return out;
-  for (const k of Object.keys(p.learned || {}).slice(0, 2000)) if (/^[a-z]+:[a-z]{2}$/.test(k)) out.learned[k] = true;
-  for (const k of Object.keys(p.steps || {}).slice(0, 2000)) if (/^[a-z]+:[a-z]{2}$/.test(k) && typeof p.steps[k] === "object") out.steps[k] = { recognize: !!p.steps[k].recognize, spell: !!p.steps[k].spell, sentence: !!p.steps[k].sentence };
+  for (const k of Object.keys(p.learned || {}).slice(0, 2000)) if (/^[a-z0-9_]+:[a-z]{2}$/.test(k)) out.learned[k] = true;
+  for (const k of Object.keys(p.steps || {}).slice(0, 2000)) if (/^[a-z0-9_]+:[a-z]{2}$/.test(k) && typeof p.steps[k] === "object") out.steps[k] = { recognize: !!p.steps[k].recognize, spell: !!p.steps[k].spell, sentence: !!p.steps[k].sentence };
   out.score = Object.keys(out.learned).length * 100; // score derived server-side from learned words
   return out;
 }

@@ -15,4 +15,12 @@ assert.strictEqual(p.score, W.POINTS_PER_WORD);
 assert(!W.completeStep(p, "car", "en", "spell")); // no double points
 assert.strictEqual(p.score, W.POINTS_PER_WORD);
 assert(W.options(car, "en", W.seededRandom(1)).includes("car"));
+const known = W.fromWords({ en: "Car", es: "x", ja: "y" }, "t");
+assert.strictEqual(known.id, "car"); assert.strictEqual(known.thumb, "t");
+const dyn = W.fromWords({ en: "Fire Hydrant", es: "boca de incendios", ja: "消火栓" }, "t");
+assert.strictEqual(dyn.id, "x_fire_hydrant");
+assert(W.checkSpelling(dyn, "ja", "消火栓") && W.checkSpelling(dyn, "es", "Boca de incendios"));
+assert(!W.options(dyn, "es", W.seededRandom(2)).slice().sort().some((v, i, a) => v === a[i - 1]));
+const p2 = W.newProgress(); ["recognize", "spell", "sentence"].forEach((s) => W.completeStep(p2, dyn.id, "es", s));
+assert(W.isLearned(p2, dyn.id, "es"));
 console.log("ok");
