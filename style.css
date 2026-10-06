@@ -11,7 +11,7 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 .obj{position:absolute;transform:translate(-50%,-100%);background:none;border:0;cursor:pointer;line-height:1;padding:0;filter:grayscale(1)}
 .obj.learned{filter:none}
 #pano,#scene #sky,#scene #ground{filter:grayscale(1)}
-#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px;z-index:5;pointer-events:none}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px;z-index:7;pointer-events:none}
 #hud>*{pointer-events:auto}
 #hud{gap:8px}#score{margin-right:auto}
 #score{background:#000a;padding:6px 12px;border-radius:12px}
