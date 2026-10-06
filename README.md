@@ -1,4 +1,4 @@
-# LanguageLearningGame
+# Vocab Venture
 
 A browser game: explore a black-and-white street, click objects to learn their name in English, Spanish or Japanese, and the object turns to color once learned.
 

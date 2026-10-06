@@ -28,7 +28,7 @@
   /* ---------- menus ---------- */
   function mainMenu() {
     state = "menu"; $("hud").hidden = true; $("touch").hidden = true;
-    show(`<h1>🌍 Language Learning Game</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>`);
+    show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>`);
     $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); $("lb").onclick = () => leaderboard(mainMenu);
   }
   function langPrompt() {
@@ -136,12 +136,12 @@
   }
   function loadMaps() {
     if (!CFG.googleMapsApiKey) return Promise.resolve(false);
-    if (window.google && google.maps) return Promise.resolve(true);
+    if (window.google && google.maps && google.maps.importLibrary) return Promise.resolve(true);
     return new Promise((res) => {
       window.__mapsReady = () => res(true);
       const s = document.createElement("script");
-      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(CFG.googleMapsApiKey) + "&callback=__mapsReady";
-      s.onerror = () => res(false); document.head.appendChild(s);
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(CFG.googleMapsApiKey) + "&loading=async&callback=__mapsReady&libraries=streetView";
+      s.async = true; s.defer = true; s.onerror = () => res(false); document.head.appendChild(s);
     });
   }
   const CITIES = [[35.6595, 139.7005], [40.4168, -3.7038], [51.5074, -0.1278], [19.4326, -99.1332], [34.6937, 135.5023], [41.3851, 2.1734], [40.7128, -74.006], [-34.6037, -58.3816]];
@@ -152,6 +152,7 @@
     $("pano").style.display = "none"; $("scene").style.display = ""; svReady = false;
     renderObjects();
     if (!(await loadMaps())) return;
+    try { await google.maps.importLibrary("streetView"); } catch (e) { return; }
     const c = CITIES[Math.floor(Math.random() * CITIES.length)];
     new google.maps.StreetViewService().getPanorama({ location: { lat: c[0] + (Math.random() - 0.5) * 0.02, lng: c[1] + (Math.random() - 0.5) * 0.02 }, radius: 2000 }, (data, status) => {
       if (status !== "OK") return;
