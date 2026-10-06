@@ -13,6 +13,7 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 #pano,#scene #sky,#scene #ground{filter:grayscale(1)}
 #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px;z-index:5;pointer-events:none}
 #hud>*{pointer-events:auto}
+#hud{gap:8px}#score{margin-right:auto}
 #score{background:#000a;padding:6px 12px;border-radius:12px}
 #gear{font-size:28px;background:#000a;color:#fff;border:0;border-radius:50%;width:48px;height:48px;cursor:pointer}
 #touch{position:fixed;bottom:16px;left:16px;display:grid;grid-template-columns:repeat(3,56px);grid-template-areas:". w ." "a s d";gap:6px;z-index:5}
@@ -31,3 +32,10 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 .big{font-size:72px}.msg{min-height:1.4em;color:#ffd166}.ok{color:#6f6}
 table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid #444;text-align:left}td:last-child{text-align:right}
 #sky{background-image:repeating-linear-gradient(90deg,#0003 0 60px,#0000 60px 90px),linear-gradient(#5aa9ff,#cfe8ff)}
+#globe{position:fixed;inset:0;z-index:6;background:#000}
+#globeMap{position:absolute;inset:0;filter:grayscale(1)}
+#globeBar{position:absolute;top:0;left:0;right:0;display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 70px 10px 10px;background:#000a;z-index:1}
+#globeBar button{padding:10px 14px;border-radius:10px;border:0;background:#3b6fd6;color:#fff;font-weight:700;cursor:pointer}
+#globe[hidden],#toast[hidden]{display:none}
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#000c;padding:10px 16px;border-radius:12px;z-index:9;max-width:90%}
+#globeBtn{font-size:24px;background:#000a;color:#fff;border:0;border-radius:50%;width:48px;height:48px;cursor:pointer}

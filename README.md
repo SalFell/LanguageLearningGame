@@ -4,7 +4,7 @@ A browser game: explore a black-and-white street, click objects to learn their n
 
 - **Play locally:** serve this folder (`python3 -m http.server`) and open `index.html`. No build step.
 - **itch.io:** zip the folder contents (with `index.html` at the root) and upload as an HTML5 game. Works on mobile (on-screen WASD buttons).
-- **Controls:** W/S move, A/D turn, TAB or the ⚙ icon opens the pause menu, click an object to learn it.
+- **Controls:** W/S move, A/D turn, scroll out (or G, or the 🌍 button) for a global view where you click anywhere to drop into Street View, TAB or the ⚙ icon opens the pause menu, click an object to learn it.
 - **Learning:** each word needs 3 steps (recognize, spell, use in a sentence), then it is colored permanently and awards 100 points. The language dropdown on the learning screen switches languages.
 - **Street View:** put a Google Maps API key in `config.js` (`googleMapsApiKey`). Without a key an offline pseudo-street scene is used.
 - **Backend (`server/server.js`, Node 18+, no dependencies):** `node server/server.js` serves the game and an API for email/password accounts, Google/Apple/Amazon sign-in, progress + settings sync, and a global leaderboard (stored in `server/data.json`). Score is computed server-side from learned words.

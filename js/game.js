@@ -27,7 +27,7 @@
 
   /* ---------- menus ---------- */
   function mainMenu() {
-    state = "menu"; $("hud").hidden = true; $("touch").hidden = true;
+    state = "menu"; $("hud").hidden = true; $("touch").hidden = true; $("globe").hidden = true;
     show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>`);
     $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); $("lb").onclick = () => leaderboard(mainMenu);
   }
@@ -147,7 +147,7 @@
     return new Promise((res) => {
       window.__mapsReady = () => res(true);
       const s = document.createElement("script");
-      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(CFG.googleMapsApiKey) + "&loading=async&callback=__mapsReady&libraries=streetView";
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(CFG.googleMapsApiKey) + "&loading=async&callback=__mapsReady&libraries=streetView,maps";
       s.async = true; s.defer = true; s.onerror = () => res(false); document.head.appendChild(s);
     });
   }
@@ -161,15 +161,55 @@
     if (!(await loadMaps())) return;
     try { await google.maps.importLibrary("streetView"); } catch (e) { return; }
     const c = CITIES[Math.floor(Math.random() * CITIES.length)];
-    new google.maps.StreetViewService().getPanorama({ location: { lat: c[0] + (Math.random() - 0.5) * 0.02, lng: c[1] + (Math.random() - 0.5) * 0.02 }, radius: 2000 }, (data, status) => {
-      if (status !== "OK") return;
+    dropIn({ lat: c[0] + (Math.random() - 0.5) * 0.02, lng: c[1] + (Math.random() - 0.5) * 0.02 }, 2000);
+  }
+  // Drop into the nearest Street View panorama to a position; resolves true on success.
+  function dropIn(pos, radius) {
+    return new Promise((res) => new google.maps.StreetViewService().getPanorama({ location: pos, radius }, (data, status) => {
+      if (status !== "OK") return res(false);
       $("pano").style.display = ""; $("scene").style.background = "none"; $("sky").style.display = $("ground").style.display = "none";
       sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: false, scrollwheel: false, linksControl: false });
       sv.setPano(data.location.pano); sv.setPov({ heading: loc.heading, pitch: 0 }); svReady = true;
       loc.key = data.location.pano; renderObjects();
       if (!sv.__bound) { sv.__bound = true; sv.addListener("pano_changed", () => { loc.key = sv.getPano(); renderObjects(); }); }
-    });
+      res(true);
+    }));
   }
+
+  /* ---------- global view: zoom out, pick anywhere, drop into Street View ---------- */
+  let map = null, marker = null;
+  async function openGlobe() {
+    if (state !== "playing") return;
+    if (!CFG.googleMapsApiKey || !(await loadMaps())) { flash("The globe needs Google Maps (add an API key in config.js)."); return; }
+    try { await google.maps.importLibrary("maps"); await google.maps.importLibrary("streetView"); } catch (e) { flash("Could not load Google Maps."); return; }
+    state = "globe"; $("globe").hidden = false; $("globeMsg").textContent = "Click anywhere to drop into Street View";
+    const at = svReady && sv.getPosition();
+    if (!map) {
+      map = new google.maps.Map($("globeMap"), { center: { lat: 20, lng: 0 }, zoom: 2, minZoom: 2, mapTypeId: "hybrid", streetViewControl: false, fullscreenControl: false, keyboardShortcuts: false, gestureHandling: "greedy" });
+      map.addListener("click", (e) => pick(e.latLng));
+    }
+    if (at) { marker = marker || new google.maps.Marker({ map }); marker.setMap(map); marker.setPosition(at); }
+    map.setZoom(2); map.setCenter({ lat: 20, lng: 0 });
+  }
+  function closeGlobe() { $("globe").hidden = true; if (state === "globe") state = "playing"; }
+  async function pick(latLng) {
+    $("globeMsg").textContent = "Searching for Street View…";
+    const pos = { lat: latLng.lat(), lng: latLng.lng() };
+    // widen the search as needed, since Street View coverage is not everywhere
+    for (const r of [1000, 10000, 50000, 200000]) {
+      if (await dropIn(pos, r)) { loc.heading = Math.random() * 360; sv.setPov({ heading: loc.heading, pitch: 0 }); closeGlobe(); return; }
+    }
+    $("globeMsg").textContent = "No Street View coverage near there. Try another spot!";
+  }
+  let flashTimer = null;
+  function flash(t) { const m = $("toast"); m.textContent = t; m.hidden = false; clearTimeout(flashTimer); flashTimer = setTimeout(() => (m.hidden = true), 3000); }
+  let wheelAcc = 0;
+  addEventListener("wheel", (e) => {
+    if (state !== "playing" || !overlay.hidden) return;
+    wheelAcc += e.deltaY; if (wheelAcc < -1e4) wheelAcc = 0;
+    if (wheelAcc > 250) { wheelAcc = 0; openGlobe(); } else if (wheelAcc < -250) wheelAcc = 0;
+  }, { passive: true });
+  $("globeBtn").onclick = openGlobe; $("globeBack").onclick = closeGlobe;
   function turn(d) {
     loc.heading = (loc.heading + d + 360) % 360;
     if (svReady) sv.setPov({ heading: loc.heading, pitch: 0 });
@@ -193,7 +233,9 @@
   addEventListener("keydown", (e) => {
     if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
-    if (k === "tab") { e.preventDefault(); if (state === "playing") pauseMenu(); else if (state === "paused") resume(); }
+    if (k === "escape" && state === "globe") closeGlobe();
+    else if (k === "tab") { e.preventDefault(); if (state === "playing" || state === "globe") { closeGlobe(); state = "playing"; pauseMenu(); } else if (state === "paused") resume(); }
+    else if (k === "g" && state === "playing") openGlobe();
     else press(k);
   });
   document.querySelectorAll("#touch button").forEach((b) => {
@@ -201,7 +243,7 @@
     b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(b.dataset.key); t = setInterval(() => press(b.dataset.key), 120); });
     ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
   });
-  $("gear").onclick = () => state === "playing" && pauseMenu();
+  $("gear").onclick = () => { if (state === "globe") closeGlobe(); if (state === "playing") pauseMenu(); };
   addEventListener("resize", renderObjects);
   applySettings(); mainMenu(); A.probe().then(() => A.refresh()).then(() => { applySettings(); if (state === "menu") mainMenu(); });
 })();
