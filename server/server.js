@@ -15,7 +15,7 @@ try { db = JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch (e) { /* new 
 let saveTimer = null;
 const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => fs.writeFile(DATA_FILE + ".tmp", JSON.stringify(db), (e) => { if (!e) fs.rename(DATA_FILE + ".tmp", DATA_FILE, () => {}); }), 100); };
 const emptyProgress = () => ({ learned: {}, steps: {}, score: 0 });
-const defaultSettings = () => ({ highContrast: false, largeText: false, reduceMotion: false, lang: "es" });
+const defaultSettings = () => ({ highContrast: false, largeText: false, reduceMotion: false, lang: "es", native: "en" });
 const publicUser = (u) => ({ id: u.id, name: u.name, provider: u.provider, progress: u.progress, settings: u.settings });
 
 /* ---------- tokens (HS256 JWT) ---------- */
@@ -87,7 +87,7 @@ function cleanProgress(p) {
   out.score = Object.keys(out.learned).length * 100; // score derived server-side from learned words
   return out;
 }
-function cleanSettings(s) { const d = defaultSettings(); s = s || {}; return { highContrast: !!s.highContrast, largeText: !!s.largeText, reduceMotion: !!s.reduceMotion, lang: ["en", "es", "ja"].includes(s.lang) ? s.lang : d.lang }; }
+function cleanSettings(s) { const d = defaultSettings(); s = s || {}; return { highContrast: !!s.highContrast, largeText: !!s.largeText, reduceMotion: !!s.reduceMotion, lang: ["en", "es", "ja"].includes(s.lang) ? s.lang : d.lang, native: ["en", "es", "ja"].includes(s.native) ? s.native : d.native }; }
 
 const routes = {
   "POST /api/register": async (req) => {
@@ -111,6 +111,15 @@ const routes = {
     const id = provider + ":" + info.sub;
     const u = db.users[id] = db.users[id] || { id, name: String(info.name).slice(0, 40), provider, progress: emptyProgress(), settings: defaultSettings() };
     save(); return { token: issue(id), user: publicUser(u) };
+  },
+  // Player reports that the image recognizer got an object wrong. Stored for review / building a correction set.
+  "POST /api/misidentified": async (req) => {
+    const b = await readBody(req), str = (v, n) => String(v == null ? "" : v).slice(0, n);
+    let uid = null; try { uid = verifyToken(bearer(req)); } catch (e) { /* anonymous */ }
+    db.reports = db.reports || [];
+    db.reports.push({ at: Date.now(), user: uid, wrong: str(b.wrong, 100), candidates: (Array.isArray(b.candidates) ? b.candidates : []).slice(0, 10).map((c) => str(c, 100)), thumb: /^data:image\/jpeg;base64,/.test(b.thumb || "") ? str(b.thumb, 20000) : undefined, text: str(b.text, 500), lang: str(b.lang, 5) });
+    if (db.reports.length > 5000) db.reports.shift();
+    save(); return { ok: true };
   },
   "GET /api/me": async (req) => ({ user: publicUser(authed(req)) }),
   "PUT /api/me": async (req) => {

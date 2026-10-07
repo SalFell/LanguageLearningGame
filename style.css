@@ -45,3 +45,13 @@ table{width:100%;border-collapse:collapse}td{padding:6px;border-bottom:1px solid
 #selectBtn{font-size:22px;background:#000a;color:#fff;border:0;border-radius:50%;width:48px;height:48px;cursor:pointer}
 #selectBtn.on{background:#3b6fd6}
 body.selecting #world{cursor:crosshair}
+.native{font-size:1.2em;margin:4px 0}
+.signtext{background:#333;border-radius:12px;padding:10px;margin:10px 0;text-align:left}
+.signtext h3{margin:0 0 6px}.words .w{cursor:pointer;border-bottom:1px dotted #9cf;padding:0 1px}.words .w:hover,.words .w:focus{background:#3b6fd6;outline:0}
+#panel label:not(.row){display:block;text-align:left;margin-top:8px}
+#wordpop{position:fixed;inset:0;z-index:20;background:#000a;display:flex;align-items:center;justify-content:center;padding:12px}
+#wordpop[hidden]{display:none}
+#wordpopBox{background:#1b1b2b;border:2px solid #9cf;border-radius:16px;padding:18px;width:min(420px,100%);max-height:100%;overflow:auto}
+#wordpopBox button{width:100%;margin-top:10px;padding:10px;border:0;border-radius:10px;background:#3b6fd6;color:#fff;font-weight:700;cursor:pointer}
+table.info th{text-align:left;vertical-align:top;color:#9cf;padding:6px 8px 6px 0;white-space:nowrap;border-bottom:1px solid #444}
+table.info td{text-align:left!important;border-bottom:1px solid #444}

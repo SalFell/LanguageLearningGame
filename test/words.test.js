@@ -23,4 +23,13 @@ assert(W.checkSpelling(dyn, "ja", "消火栓") && W.checkSpelling(dyn, "es", "Bo
 assert(!W.options(dyn, "es", W.seededRandom(2)).slice().sort().some((v, i, a) => v === a[i - 1]));
 const p2 = W.newProgress(); ["recognize", "spell", "sentence"].forEach((s) => W.completeStep(p2, dyn.id, "es", s));
 assert(W.isLearned(p2, dyn.id, "es"));
+assert.strictEqual(W.kanaToRomaji("じてんしゃ"), "jitensha");
+assert.strictEqual(W.kanaToRomaji("ラーメン"), "raamen");
+assert.strictEqual(W.kanaToRomaji("がっこう"), "gakkou");
+assert.strictEqual(W.labelFor(car, "ja"), "くるま · kuruma");
+assert(W.checkSpelling(car, "ja", "クルマ")); // katakana input matches hiragana reading
+const kanji = W.fromWords({ en: "station", es: "estación", ja: "駅", jaReading: { k: "えき", r: "eki" } }, "t", { original: "駅前", locale: "ja" });
+assert.strictEqual(W.labelFor(kanji, "ja"), "駅（えき） · eki");
+assert(W.checkSpelling(kanji, "ja", "eki") && W.checkSpelling(kanji, "ja", "えき") && W.checkSpelling(kanji, "ja", "駅"));
+assert.strictEqual(kanji.text.original, "駅前");
 console.log("ok");

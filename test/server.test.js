@@ -12,9 +12,11 @@ server.listen(0, async () => {
     assert.strictEqual((await call("POST", "/api/login", { email: "a@b.co", password: "wrong!!" })).s, 401);
     assert.strictEqual((await call("POST", "/api/login", { email: "a@b.co", password: "secret1" })).s, 200);
     assert.strictEqual((await call("GET", "/api/me")).s, 401);
-    r = await call("PUT", "/api/me", { progress: { learned: { "car:es": true }, steps: {}, score: 999999 }, settings: { lang: "ja" } }, t);
+    r = await call("PUT", "/api/me", { progress: { learned: { "car:es": true }, steps: {}, score: 999999 }, settings: { lang: "ja", native: "es" } }, t);
+    assert.strictEqual(r.j.user.settings.native, "es");
     assert.strictEqual(r.j.user.progress.score, 100); // server computes score
     assert.strictEqual((await call("GET", "/api/leaderboard")).j.leaderboard[0].score, 100);
+    assert.strictEqual((await call("POST", "/api/misidentified", { wrong: "tree", candidates: ["plant"], lang: "es" }, t)).s, 200);
     assert.strictEqual((await call("POST", "/api/oauth", { provider: "google", token: "x" })).s, 401);
     assert.strictEqual((await call("DELETE", "/api/me/progress", null, t)).j.user.progress.score, 0);
     assert.strictEqual((await call("DELETE", "/api/me", null, t)).s, 200);

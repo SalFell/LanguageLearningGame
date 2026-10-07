@@ -2,7 +2,7 @@
   const W = window.Words, A = window.Accounts, CFG = window.GAME_CONFIG || {};
   const $ = (id) => document.getElementById(id);
   const panel = $("panel"), overlay = $("overlay");
-  const guest = { progress: W.newProgress(), settings: { highContrast: false, largeText: false, reduceMotion: false, lang: "es" } };
+  const guest = { progress: W.newProgress(), settings: { highContrast: false, largeText: false, reduceMotion: false, lang: "es", native: "en" } };
   let state = "menu"; // menu | playing | paused | learning
   let loc = { key: "0,0", heading: 0 }, sv = null, svReady = false;
 
@@ -20,8 +20,9 @@
   }
   function show(html) { panel.innerHTML = html; overlay.hidden = false; }
   function hide() { overlay.hidden = true; panel.innerHTML = ""; }
-  function langSelect(id, cur) {
-    return `<select id="${id}" aria-label="Language">${Object.entries(W.LANGUAGES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${v}</option>`).join("")}</select>`;
+  const nativeLang = () => settings().native || "en";
+  function langSelect(id, cur, label) {
+    return `<select id="${id}" aria-label="${label || "Language"}">${Object.entries(W.LANGUAGES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${v}</option>`).join("")}</select>`;
   }
 
   /* ---------- menus ---------- */
@@ -31,8 +32,8 @@
     $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); $("lb").onclick = () => leaderboard(mainMenu);
   }
   function langPrompt() {
-    show(`<h2>Which language do you want to learn?</h2>${langSelect("lang", settings().lang)}<button id="go">START</button><button id="back" class="secondary">Back</button>`);
-    $("go").onclick = () => { persist((u) => { (u.settings || u).lang = $("lang").value; }); startGame(); };
+    show(`<h2>Language to Learn</h2><label>I want to learn:</label>${langSelect("lang", settings().lang, "Language to learn")}<label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}<button id="go">START</button><button id="back" class="secondary">Back</button>`);
+    $("go").onclick = () => { persist((u) => { const s = u.settings || u; s.lang = $("lang").value; s.native = $("native").value; }); startGame(); };
     $("back").onclick = mainMenu;
   }
   function pauseMenu() {
@@ -45,8 +46,9 @@
   function settingsMenu(back) {
     const s = settings();
     const cb = (k, t) => `<label class="row"><input type="checkbox" data-k="${k}"${s[k] ? " checked" : ""}> ${t}</label>`;
-    show(`<h2>Settings</h2><h3>Accessibility</h3>${cb("highContrast", "High contrast menus")}${cb("largeText", "Large text")}${cb("reduceMotion", "Reduce motion")}<button id="acct">ACCOUNT MANAGEMENT</button><button id="back" class="secondary">Back</button>`);
+    show(`<h2>Settings</h2><h3>Accessibility</h3>${cb("highContrast", "High contrast menus")}${cb("largeText", "Large text")}${cb("reduceMotion", "Reduce motion")}<h3>Languages</h3><label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}<button id="acct">ACCOUNT MANAGEMENT</button><button id="back" class="secondary">Back</button>`);
     panel.querySelectorAll("input[data-k]").forEach((i) => (i.onchange = () => { persist((u) => { (u.settings || u)[i.dataset.k] = i.checked; }); applySettings(); }));
+    $("native").onchange = () => persist((u) => { (u.settings || u).native = $("native").value; });
     $("acct").onclick = () => accountMenu(() => settingsMenu(back)); $("back").onclick = back;
   }
   function accountMenu(back) {
@@ -79,39 +81,100 @@
   }
 
   /* ---------- learning screen ---------- */
+  const wordLabel = (o, l) => W.labelFor(o, l);
+  // Intro: just the object's name (in the language being learned and in the player's native language). "Learn" starts the exercises.
   function learn(obj, lang) {
     state = "learning";
-    const p = progress(), t = obj[lang];
-    const done = W.isLearned(p, obj.id, lang);
-    const head = `${langSelect("lang", lang)}${obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`}`;
-    const bind = () => { $("lang").onchange = () => learn(obj, $("lang").value); };
+    const done = W.isLearned(progress(), obj.id, lang), nat = nativeLang();
+    const thumb = obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`;
+    const textBlock = obj.text ? `<div class="signtext"><h3>Text found</h3><p id="txt" class="words">${wordsHtml(obj.text)}</p><p id="txtTr" class="msg">Translating…</p><small>Tap a word to see what it means.</small></div>` : "";
+    show(`${langSelect("lang", lang)}${thumb}<h2>${esc(wordLabel(obj, lang))}</h2>${nat !== lang ? `<p class="native">${esc(wordLabel(obj, nat))} <small>(${esc(W.LANGUAGES[nat])})</small></p>` : ""}${done ? `<p class="ok">✔ Learned! (+${W.POINTS_PER_WORD} pts)</p>` : ""}${textBlock}${done ? "" : `<button id="learn">Learn</button>`}${obj.dynamic ? `<button id="mis" class="secondary">Misidentified</button>` : ""}<button id="close" class="secondary">Close</button>`);
+    $("lang").onchange = () => learn(obj, $("lang").value);
+    $("close").onclick = () => { hide(); state = "playing"; };
+    if ($("learn")) $("learn").onclick = () => exercise(obj, lang);
+    if ($("mis")) $("mis").onclick = () => misidentified(obj, lang);
+    if (obj.text) wireText(obj, lang);
+  }
+  function exercise(obj, lang) {
+    state = "learning";
+    const t = obj[lang], nat = nativeLang();
+    const thumb = obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`;
+    // the word in the language being learned stays hidden here; the native word is the prompt
+    const head = `${langSelect("lang", lang)}${thumb}${nat !== lang ? `<h2>${esc(wordLabel(obj, nat))}</h2>` : ""}`;
     const close = `<button id="close" class="secondary">Close</button>`;
-    const wire = () => { bind(); $("close").onclick = () => { hide(); state = "playing"; }; };
+    const wire = () => { $("lang").onchange = () => learn(obj, $("lang").value); $("close").onclick = () => { hide(); state = "playing"; }; };
     const complete = (step, next) => {
       let newly = false;
       persist((u) => { newly = W.completeStep(u.progress || u, obj.id, lang, step); });
-      if (newly && obj.spot) Spots.add(Object.assign({ words: { en: obj.en.w, es: obj.es.w, ja: obj.ja.w }, thumb: obj.thumb }, obj.spot));
+      if (newly && obj.spot) Spots.add(Object.assign({ words: { en: obj.en.w, es: obj.es.w, ja: obj.ja.w, jaReading: W.jaInfo(obj.ja) }, thumb: obj.thumb, text: obj.text }, obj.spot));
       if (newly) { $("score").textContent = progress().score + " pts"; renderObjects(); }
       next(newly);
     };
-    if (done) { show(`${head}<h2>${esc(t.w)}</h2><p class="ok">✔ Learned! (+${W.POINTS_PER_WORD} pts)</p>${close}`); return wire(); }
-    const steps = (progress().steps || {})[W.OBJECTS && obj.id + ":" + lang] || {};
+    const steps = (progress().steps || {})[obj.id + ":" + lang] || {};
     const stage = W.STEPS.find((s) => !steps[s]);
     const rnd = W.seededRandom(W.hash(obj.id + lang + stage));
     const mark = W.STEPS.map((s) => (steps[s] ? "✔" : "○") + " " + s).join(" · ");
-    const choices = (q, msgId) => `${q}${W.options(obj, lang, rnd).map((o) => `<button class="secondary" data-o="${esc(o)}">${esc(o)}</button>`).join("")}<p class="msg" id="${msgId}"></p>`;
-    const finish = (newly) => (newly ? (show(`${head}<h2>${esc(t.w)}</h2><p class="ok">🎉 Learned! +${W.POINTS_PER_WORD} pts</p>${close}`), wire()) : learn(obj, lang));
+    const choices = (q) => `${q}${W.optionObjects(obj, lang, rnd).map((o) => `<button class="secondary" data-o="${esc(o[lang].w)}">${esc(wordLabel(o, lang))}</button>`).join("")}<p class="msg" id="msg"></p>`;
+    const finish = (newly) => { if (newly) { show(`${langSelect("lang", lang)}${thumb}<h2>${esc(wordLabel(obj, lang))}</h2><p class="ok">🎉 Learned! +${W.POINTS_PER_WORD} pts</p>${close}`); wire(); } else exercise(obj, lang); };
+    const pick = (step) => panel.querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => (b.dataset.o === t.w ? complete(step, finish) : ($("msg").textContent = "Try again!"))));
     if (stage === "recognize") {
-      show(`${head}<h2>${esc(t.w)}</h2><small>${mark}</small>${choices("<p>Which word means this object?</p>", "msg")}${close}`); wire();
-      panel.querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => (b.dataset.o === t.w ? complete("recognize", finish) : ($("msg").textContent = "Try again!"))));
+      show(`${head}<small>${mark}</small>${choices("<p>Which word means this object?</p>")}${close}`); wire(); pick("recognize");
     } else if (stage === "spell") {
-      show(`${head}<small>${mark}</small><p>Type the word for this object${lang === "ja" && t.r ? " (kana or romaji)" : ""}. ${lang === "ja" && !t.r ? "Type it exactly: <b>" + esc(t.w) + "</b>" : "Hint: <b>" + esc(t.w[0]) + "</b> + " + ([...t.w].length - 1) + " more"}</p><input id="ans" autocomplete="off" autocapitalize="off"><button id="chk">Check</button><p class="msg" id="msg"></p>${close}`); wire();
-      const chk = () => (W.checkSpelling(obj, lang, $("ans").value) ? complete("spell", finish) : ($("msg").textContent = "Not quite — it was " + t.w + (t.r ? " (" + t.r + ")" : "") + ". Try again!"));
+      const ji = lang === "ja" ? W.jaInfo(t) : {};
+      show(`${head}<small>${mark}</small><p>Type the word for this object${lang === "ja" ? " (romaji, hiragana or kanji)" : ""}. Hint: starts with <b>${esc(lang === "ja" && ji.r ? ji.r[0] : t.w[0])}</b></p><input id="ans" autocomplete="off" autocapitalize="off"><button id="chk">Check</button><p class="msg" id="msg"></p>${close}`); wire();
+      const chk = () => (W.checkSpelling(obj, lang, $("ans").value) ? complete("spell", finish) : ($("msg").textContent = "Not quite — it was " + wordLabel(obj, lang) + ". Try again!"));
       $("chk").onclick = chk; $("ans").onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") chk(); };
     } else {
-      show(`${head}<small>${mark}</small>${choices(`<p>Complete the sentence:</p><h3>${esc(W.fillSentence(obj, lang))}</h3>`, "msg")}${close}`); wire();
-      panel.querySelectorAll("[data-o]").forEach((b) => (b.onclick = () => (b.dataset.o === t.w ? complete("sentence", finish) : ($("msg").textContent = "Try again!"))));
+      show(`${head}<small>${mark}</small>${choices(`<p>Complete the sentence:</p><h3>${esc(W.fillSentence(obj, lang))}</h3>`)}${close}`); wire(); pick("sentence");
     }
+  }
+
+  /* ---- text found on the object: translation + clickable words ---- */
+  function segments(text, locale) {
+    const out = [];
+    try {
+      const seg = new Intl.Segmenter(locale || undefined, { granularity: "word" });
+      for (const s of seg.segment(text)) out.push({ s: s.segment, i: s.index, w: !!s.isWordLike });
+    } catch (e) { const re = /[\p{L}\p{M}][\p{L}\p{M}'’-]*/gu; let m, last = 0; while ((m = re.exec(text))) { if (m.index > last) out.push({ s: text.slice(last, m.index), i: last, w: false }); out.push({ s: m[0], i: m.index, w: true }); last = m.index + m[0].length; } if (last < text.length) out.push({ s: text.slice(last), i: last, w: false }); }
+    return out;
+  }
+  const wordsHtml = (t) => segments(t.original, t.locale).map((s) => (s.w ? `<span class="w" data-i="${s.i}" data-n="${s.s.length}" tabindex="0">${esc(s.s)}</span>` : esc(s.s))).join("");
+  async function wireText(obj, lang) {
+    const t = obj.text;
+    panel.querySelectorAll("#txt .w").forEach((el) => {
+      const go = () => showWord(t, +el.dataset.i, +el.dataset.n, lang);
+      el.onclick = go; el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    });
+    try {
+      const r = await Vision.translateSmart(t.original, nativeLang(), lang);
+      t.src = r.src || t.locale;
+      if ($("txtTr")) $("txtTr").innerHTML = `<b>${esc(W.LANGUAGES[r.dest] || r.dest)}:</b> ${esc(r.t)}`;
+    } catch (e) { if ($("txtTr")) $("txtTr").textContent = "Couldn't translate the text (enable the Cloud Translation API)."; }
+  }
+  async function showWord(t, start, len, lang) {
+    const pop = $("wordpop"), body = $("wordpopBody");
+    body.innerHTML = "<p>Loading…</p>"; pop.hidden = false;
+    $("wordpopClose").onclick = () => (pop.hidden = true);
+    try {
+      const i = await Vision.wordInfo(t.original, start, len, t.src || t.locale, nativeLang(), lang);
+      const row = (k, v) => (v ? `<tr><th>${k}</th><td>${esc(v)}</td></tr>` : "");
+      body.innerHTML = `<h2>${esc(i.word)}</h2><table class="info">${row("Translation (" + (W.LANGUAGES[i.dest] || i.dest) + ")", i.translation)}${row("Meaning", i.definition || (i.lemmaTranslation ? "“" + i.lemma + "” = " + i.lemmaTranslation : i.translation && "“" + i.word + "” = " + i.translation))}${row("Type", i.pos)}${row("How it's used here", i.explanation)}</table>`;
+    } catch (e) { body.innerHTML = `<p class="msg">Couldn't look that word up: ${esc(e.message)}</p>`; }
+  }
+
+  /* ---- "Misidentified": remember the mistake, report it, and try the next best guess ---- */
+  async function misidentified(obj, lang) {
+    const wrong = obj.en.w;
+    Vision.reject(wrong);
+    A.report({ wrong, candidates: obj.candidates || [], thumb: obj.thumb, spot: obj.spot, text: obj.text && obj.text.original, lang: settings().lang });
+    flash("Thanks — reported. Trying another guess…", 4000);
+    let next = (obj.candidates || []).slice((obj.candIdx || 0) + 1)[0], idx = (obj.candIdx || 0) + 1;
+    if (!next) { next = (prompt("Sorry about that! What is this object? (type its English name)") || "").trim(); idx = (obj.candidates || []).length; if (!next) return learn(obj, lang); }
+    try {
+      const o2 = W.fromWords(await Vision.wordsFor(next), obj.thumb, obj.text);
+      o2.spot = obj.spot; o2.candidates = (obj.candidates || []).concat(next === obj.candidates?.[idx] ? [] : [next]); o2.candIdx = Math.min(idx, o2.candidates.length - 1);
+      learn(o2, lang);
+    } catch (e) { flash("Couldn't look that up: " + e.message, 5000); learn(obj, lang); }
   }
 
   /* ---------- world ---------- */
@@ -133,7 +196,7 @@
       b.className = "spot"; b.setAttribute("aria-label", s.words.en);
       b.style.left = x * 100 + "%"; b.style.top = y * 100 + "%";
       b.innerHTML = `<img alt="" src="${s.thumb}">`;
-      b.onclick = () => state === "playing" && learn(W.fromWords(s.words, s.thumb), settings().lang);
+      b.onclick = () => state === "playing" && learn(W.fromWords(s.words, s.thumb, s.text), settings().lang);
       box.appendChild(b);
     }
   }
@@ -190,28 +253,33 @@
     return new Promise((res) => new google.maps.StreetViewService().getPanorama({ location: pos, radius }, (data, status) => {
       if (status !== "OK") return res(false);
       $("pano").style.display = ""; $("scene").style.background = "none"; $("sky").style.display = $("ground").style.display = "none";
-      sv = sv || new google.maps.StreetViewPanorama($("pano"), { disableDefaultUI: true, keyboardShortcuts: false, clickToGo: true, linksControl: true, panControl: true, zoomControl: true, addressControl: false, fullscreenControl: false, enableCloseButton: false, keyboardShortcuts: true, scrollwheel: false, disableDoubleClickZoom: true, zoom: 1 });
+      sv = sv || new google.maps.StreetViewPanorama($("pano"), { clickToGo: false, linksControl: true, panControl: true, zoomControl: true, addressControl: false, fullscreenControl: false, enableCloseButton: false, showRoadLabels: true, keyboardShortcuts: true, scrollwheel: false, disableDoubleClickZoom: true, zoom: 1 });
       sv.setPano(data.location.pano); sv.setPov({ heading: loc.heading, pitch: 0 }); svReady = true;
       loc.key = data.location.pano; renderObjects();
       if (!sv.__bound) { sv.__bound = true; sv.addListener("pano_changed", () => { loc.key = sv.getPano(); renderObjects(); }); sv.addListener("pov_changed", () => { loc.heading = (sv.getPov().heading + 360) % 360; renderObjects(); }); }
-      res(true);
+      sv.focus(); res(true);
     }));
   }
 
   /* ---------- global view: zoom out, pick anywhere, drop into Street View ---------- */
   let map = null, marker = null;
+  const OVERHEAD = 18, DROP_ZOOM = 19;
+  const updateLevel = () => { if (map && state === "globe") $("globeMsg").textContent = Geo.zoomLevel(map.getZoom()) + " view — scroll to zoom, click to drop into Street View"; };
   async function openGlobe() {
     if (state !== "playing") return;
     if (!CFG.googleMapsApiKey || !(await loadMaps())) { flash("The globe needs Google Maps (add an API key in config.js)."); return; }
     try { await google.maps.importLibrary("maps"); await google.maps.importLibrary("streetView"); } catch (e) { flash("Could not load Google Maps."); return; }
-    state = "globe"; $("globe").hidden = false; $("globeMsg").textContent = "Click anywhere to drop into Street View";
+    state = "globe"; $("globe").hidden = false;
     const at = svReady && sv.getPosition();
     if (!map) {
-      map = new google.maps.Map($("globeMap"), { center: { lat: 20, lng: 0 }, zoom: 2, minZoom: 2, mapTypeId: "hybrid", streetViewControl: false, fullscreenControl: false, keyboardShortcuts: false, gestureHandling: "greedy" });
+      map = new google.maps.Map($("globeMap"), { center: { lat: 20, lng: 0 }, zoom: 2, minZoom: 2, maxZoom: 21, mapTypeId: "hybrid", streetViewControl: false, fullscreenControl: false, keyboardShortcuts: false, gestureHandling: "greedy" });
       map.addListener("click", (e) => pick(e.latLng));
+      map.addListener("zoom_changed", updateLevel);
     }
-    if (at) { marker = marker || new google.maps.Marker({ map }); marker.setMap(map); marker.setPosition(at); }
-    map.setZoom(2); map.setCenter({ lat: 20, lng: 0 });
+    // zooming out from street level starts at an overhead view of the current street, then city, province, country, world
+    if (at) { marker = marker || new google.maps.Marker({ map }); marker.setMap(map); marker.setPosition(at); map.setCenter(at); map.setZoom(OVERHEAD); }
+    else { map.setZoom(2); map.setCenter({ lat: 20, lng: 0 }); }
+    updateLevel();
   }
   function closeGlobe() { $("globe").hidden = true; if (state === "globe") state = "playing"; }
   async function pick(latLng) {
@@ -221,15 +289,25 @@
     for (const r of [1000, 10000, 50000, 200000]) {
       if (await dropIn(pos, r)) { loc.heading = Math.random() * 360; sv.setPov({ heading: loc.heading, pitch: 0 }); closeGlobe(); return; }
     }
-    $("globeMsg").textContent = "No Street View coverage near there. Try another spot!";
+    $("globeMsg").textContent = "No Street View coverage near there. Try another spot!"; setTimeout(updateLevel, 2500);
   }
   let flashTimer = null;
   function flash(t, ms) { const m = $("toast"); m.textContent = t; m.hidden = false; clearTimeout(flashTimer); flashTimer = setTimeout(() => (m.hidden = true), ms || 3000); }
+  // Wheel: gradually zooms Street View out, then continues through the overhead map (street > city > province > country > world).
+  // Scrolling back in past street level of the map drops back into Street View at the map center.
   let wheelAcc = 0;
   addEventListener("wheel", (e) => {
-    if (state !== "playing" || !overlay.hidden) return;
-    wheelAcc += e.deltaY; if (wheelAcc < -1e4) wheelAcc = 0;
-    if (wheelAcc > 250) { wheelAcc = 0; openGlobe(); } else if (wheelAcc < -250) wheelAcc = 0;
+    if (!overlay.hidden) return;
+    if (state === "globe") {
+      if (e.deltaY < 0 && map.getZoom() >= DROP_ZOOM) { const c = map.getCenter(); closeGlobe(); dropIn({ lat: c.lat(), lng: c.lng() }, 60).then((ok) => { if (!ok) flash("No Street View here."); }); }
+      return;
+    }
+    if (state !== "playing") return;
+    const z = svReady ? sv.getZoom() : 0;
+    if (e.deltaY < 0) { wheelAcc = 0; if (svReady) sv.setZoom(Math.min(4, z - e.deltaY / 300)); return; }
+    if (svReady && z > 0.05) { wheelAcc = 0; sv.setZoom(Math.max(0, z - e.deltaY / 300)); return; }
+    wheelAcc += e.deltaY;
+    if (wheelAcc > 120) { wheelAcc = 0; openGlobe(); }
   }, { passive: true });
   $("globeBtn").onclick = openGlobe; $("globeBack").onclick = closeGlobe;
   addEventListener("keydown", (e) => {
@@ -258,19 +336,40 @@
       e.preventDefault(); e.stopPropagation(); wd.setPointerCapture(e.pointerId);
       sel = { a: inBox(e), b: inBox(e) }; selBox.hidden = false; paintSel(); return;
     }
-    if (e.button === 0) down = { lx: e.clientX };
+    if (e.button === 0) down = { lx: e.clientX, x: e.clientX, y: e.clientY };
   }, true);
   wd.addEventListener("pointermove", (e) => {
     if (sel) { e.stopPropagation(); sel.b = inBox(e); paintSel(); return; }
     if (down && state === "playing" && !svReady) { loc.heading = (loc.heading - (e.clientX - down.lx) * 0.2 + 360) % 360; renderObjects(); }
     if (down) down.lx = e.clientX;
   }, true);
+  // Free movement: a click on the ground walks to the nearest panorama at that spot, even where there is no link arrow.
   wd.addEventListener("pointerup", (e) => {
-    down = null;
-    if (!sel) return;
+    const d = down; down = null;
+    if (!sel) { if (d && svReady && state === "playing" && e.button === 0 && !selectMode && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6 && !e.target.closest(".spot,button,a,.gmnoprint,.gm-svpc,.gm-control-active")) walkToClick(e); return; }
     e.stopPropagation(); const box = paintSel(); sel = null; selBox.hidden = true;
     if (box.x1 - box.x0 < 0.03 || box.y1 - box.y0 < 0.03) return flash("Drag a larger box around the object.");
     identifyBox(box);
+  }, true);
+  function walkTo(bearing, dist) {
+    const p = sv.getPosition(); if (!p) return Promise.resolve(false);
+    const t = Geo.destination(p.lat(), p.lng(), bearing, dist), cur = sv.getPano();
+    return new Promise((res) => new google.maps.StreetViewService().getPanorama({ location: t, radius: Math.max(12, dist * 0.6), preference: google.maps.StreetViewPreference.NEAREST, sources: [google.maps.StreetViewSource.OUTDOOR] }, (data, st) => {
+      if (st === "OK" && data.location.pano !== cur) { sv.setPano(data.location.pano); sv.focus(); res(true); } else res(false);
+    }));
+  }
+  function walkToClick(e) {
+    const r = wd.getBoundingClientRect(), pov = sv.getPov();
+    const dir = Geo.clickDirection((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, r.width / r.height, pov.heading, pov.pitch, sv.getZoom());
+    const dist = Geo.groundDistance(dir.pitch);
+    if (dist) walkTo(dir.heading, dist);
+  }
+  // Arrow keys: Street View handles them where a link exists; otherwise step to the nearest panorama in that direction.
+  addEventListener("keydown", (e) => {
+    if (state !== "playing" || !svReady || !/^Arrow(Up|Down)$/.test(e.key) || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    const h = (sv.getPov().heading + (e.key === "ArrowDown" ? 180 : 0)) % 360;
+    const near = (sv.getLinks() || []).some((l) => Math.abs(((l.heading - h + 540) % 360) - 180) < 45);
+    if (!near) { e.preventDefault(); walkTo(h, 15).then((ok) => ok || walkTo(h, 30)); }
   }, true);
   wd.addEventListener("pointercancel", () => { down = null; sel = null; selBox.hidden = true; }, true);
   $("selectBtn").onclick = () => { selectMode = !selectMode; $("selectBtn").classList.toggle("on", selectMode); document.body.classList.toggle("selecting", selectMode); flash(selectMode ? "Select mode: drag a box around an object" : "Select mode off"); };
@@ -280,7 +379,8 @@
     flash("🔍 Identifying…", 20000);
     try {
       const res = await Vision.identify({ pano, heading: pov.heading, pitch: pov.pitch, box, aspect: r.width / r.height });
-      const obj = W.fromWords(res.words, res.thumb), cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+      const obj = W.fromWords(res.words, res.thumb, res.text), cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+      obj.candidates = res.candidates; obj.candIdx = 0;
       obj.spot = { pano, heading: (pov.heading + Math.atan((cx - 0.5) * 2) / rad + 360) % 360, pitch: pov.pitch + Math.atan(-(cy - 0.5) * 2 * (r.height / r.width)) / rad };
       $("toast").hidden = true;
       if (state === "playing") learn(obj, settings().lang);

@@ -1,7 +1,7 @@
 // Account, progress, settings and leaderboard storage (localStorage; optional remote leaderboard).
 (function (root) {
   const DB = "llg_db", SESSION = "llg_session";
-  const defaultSettings = () => ({ highContrast: false, largeText: false, reduceMotion: false, lang: "es" });
+  const defaultSettings = () => ({ highContrast: false, largeText: false, reduceMotion: false, lang: "es", native: "en" });
   const load = () => { try { return JSON.parse(localStorage.getItem(DB)) || { users: {} }; } catch (e) { return { users: {} }; } };
   const save = (db) => localStorage.setItem(DB, JSON.stringify(db));
   const bytes = (a) => Array.from(new Uint8Array(a)).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -84,6 +84,11 @@
       return adopt(await call("POST", "/api/oauth", { provider, token: t.token, name: t.name }));
     },
     remote,
+    // Misidentified-object report: sent to the backend when available, otherwise kept on this device.
+    report(r) {
+      if (remote()) { call("POST", "/api/misidentified", r).catch(() => {}); return; }
+      try { const a = JSON.parse(localStorage.getItem("llg_reports")) || []; a.push(Object.assign({ at: Date.now() }, r)); localStorage.setItem("llg_reports", JSON.stringify(a.slice(-100))); } catch (e) { /* full */ }
+    },
     async probe() { if (!remote()) return; try { const r = await fetch(CFG.apiUrl + "/api/leaderboard"); if (!r.ok || !(await r.json()).leaderboard) backendDown = true; } catch (e) { backendDown = true; } },
     logout() { localStorage.removeItem(SESSION); localStorage.removeItem(TOKEN); },
     update(fn) { const u = this.current(); if (!u) return; const db = load(); fn(db.users[u.id]); save(db); if (remote() && localStorage.getItem(TOKEN)) push(db.users[u.id]); },
