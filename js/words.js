@@ -79,6 +79,30 @@
     if (STEPS.every((x) => s[x])) { p.learned[k] = true; p.score += POINTS_PER_WORD; return true; }
     return false;
   }
+  const GUESS_BONUS = 50, GUESS_ATTEMPTS = 3, MIN_SENTENCE_WORDS = 3, MAX_SENTENCE_POINTS = 100;
+  const addPoints = (p, n) => { p.score += n; return p.score; };
+  // Word tokens of a sentence. Japanese has no spaces, so approximate: two letters per word.
+  function sentenceTokens(s, lang) {
+    if (lang === "ja") { const n = [...String(s)].filter((c) => /[\p{L}\p{N}]/u.test(c)).length; return Array.from({ length: Math.ceil(n / 2) }, (_, i) => i); }
+    return [...new Set(norm(s).split(/[^\p{L}\p{N}'’-]+/u).filter(Boolean))];
+  }
+  const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function containsWord(sentence, obj, lang) {
+    const t = obj[lang], s = norm(sentence);
+    if (lang === "ja") {
+      const i = jaInfo(t);
+      return s.includes(norm(t.w)) || (!!i.k && toHiragana(s).includes(i.k)) || (!!i.r && squash(s).includes(squash(i.r)));
+    }
+    const strip = lang === "es" ? stripAccents : norm;
+    return new RegExp("(^|[^\\p{L}\\p{N}])" + escRe(strip(t.w)) + "(s|es)?($|[^\\p{L}\\p{N}])", "u").test(strip(s));
+  }
+  // The player's own sentence must use the word and have at least 3 words; longer/more varied sentences earn more points.
+  function scoreSentence(sentence, obj, lang) {
+    if (!containsWord(sentence, obj, lang)) return { ok: false, points: 0, reason: "Your sentence must use the word." };
+    const n = sentenceTokens(sentence, lang).length;
+    if (n < MIN_SENTENCE_WORDS) return { ok: false, points: 0, reason: "Write a longer sentence (at least " + MIN_SENTENCE_WORDS + " words)." };
+    return { ok: true, words: n, points: Math.min(MAX_SENTENCE_POINTS, (n - 2) * 10) };
+  }
   const isLearned = (p, objId, lang) => !!p.learned[progressKey(objId, lang)];
   function fillSentence(obj, lang) { return obj[lang].s.replace("{}", "＿＿＿"); }
   function seededRandom(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -100,6 +124,6 @@
     if (words.jaReading) { o.ja.k = words.jaReading.k; o.ja.r = words.jaReading.r; }
     return o;
   }
-  const api = { toHiragana, isKana, kanaToRomaji, jaInfo, labelFor, optionObjects, fromWords, LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
+  const api = { GUESS_BONUS, GUESS_ATTEMPTS, addPoints, sentenceTokens, containsWord, scoreSentence, toHiragana, isKana, kanaToRomaji, jaInfo, labelFor, optionObjects, fromWords, LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
   if (typeof module !== "undefined") module.exports = api; else root.Words = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -13,8 +13,8 @@ body.reduce-motion *{transition:none!important;animation:none!important}
 .obj{pointer-events:auto;position:absolute;transform:translate(-50%,-100%);background:none;border:0;cursor:pointer;line-height:1;padding:0}
 #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px;z-index:7;pointer-events:none}
 #hud>*{pointer-events:auto}
-#hud{gap:8px}#score{margin-right:auto}
-#score{background:#000a;padding:6px 12px;border-radius:12px}
+#hud{gap:8px}#timer{margin-right:auto}
+#score,#timer{background:#000a;padding:6px 12px;border-radius:12px}
 #gear{font-size:28px;background:#000a;color:#fff;border:0;border-radius:50%;width:48px;height:48px;cursor:pointer}
 #overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;z-index:10;padding:12px}
 #overlay[hidden],#hud[hidden]{display:none}
@@ -55,3 +55,4 @@ body.selecting #world{cursor:crosshair}
 #wordpopBox button{width:100%;margin-top:10px;padding:10px;border:0;border-radius:10px;background:#3b6fd6;color:#fff;font-weight:700;cursor:pointer}
 table.info th{text-align:left;vertical-align:top;color:#9cf;padding:6px 8px 6px 0;white-space:nowrap;border-bottom:1px solid #444}
 table.info td{text-align:left!important;border-bottom:1px solid #444}
+#panel textarea{display:block;width:100%;margin:8px 0;padding:12px;font:inherit;border-radius:10px;border:2px solid #666;background:#333;color:#fff;resize:vertical}

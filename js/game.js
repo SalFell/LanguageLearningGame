@@ -2,14 +2,21 @@
   const W = window.Words, A = window.Accounts, CFG = window.GAME_CONFIG || {};
   const $ = (id) => document.getElementById(id);
   const panel = $("panel"), overlay = $("overlay");
-  const guest = { progress: W.newProgress(), settings: { highContrast: false, largeText: false, reduceMotion: false, lang: "es", native: "en" } };
+  // Accounts + leaderboard are on hold (single-player). Set enableAccounts: true in config.js to bring them back.
+  const ACCOUNTS = CFG.enableAccounts === true;
+  const GUEST_KEY = "llg_guest";
+  const guest = (() => {
+    const d = { progress: W.newProgress(), settings: { highContrast: false, largeText: false, reduceMotion: false, lang: "es", native: "en", minutes: 3 } };
+    try { const s = JSON.parse(localStorage.getItem(GUEST_KEY)); if (s) { Object.assign(d.settings, s.settings); Object.assign(d.progress, s.progress); } } catch (e) { /* fresh */ }
+    return d;
+  })();
   let state = "menu"; // menu | playing | paused | learning
   let loc = { key: "0,0", heading: 0 }, sv = null, svReady = false;
 
-  const user = () => A.current();
+  const user = () => (ACCOUNTS ? A.current() : null);
   const progress = () => (user() || guest).progress;
   const settings = () => (user() || guest).settings;
-  const persist = (fn) => (user() ? A.update(fn) : fn(guest));
+  const persist = (fn) => { if (user()) return A.update(fn); fn(guest); try { localStorage.setItem(GUEST_KEY, JSON.stringify(guest)); } catch (e) { /* full */ } };
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
   function applySettings() {
@@ -20,6 +27,34 @@
   }
   function show(html) { panel.innerHTML = html; overlay.hidden = false; }
   function hide() { overlay.hidden = true; panel.innerHTML = ""; }
+  /* ---------- round: timer, score, game over ---------- */
+  const round = { id: 0, active: false, started: false, left: 0, total: 0, startScore: 0, identified: 0, learned: 0, timer: null };
+  const roundScore = () => progress().score - round.startScore;
+  const fmt = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  function updateHud() { $("score").textContent = roundScore() + " pts"; $("timer").textContent = round.started ? "⏱ " + fmt(round.left) : "⏱ loading…"; }
+  function beginRound(minutes) {
+    clearInterval(round.timer);
+    Object.assign(round, { id: round.id + 1, active: true, started: false, total: minutes * 60, left: minutes * 60, startScore: progress().score, identified: 0, learned: 0 });
+    updateHud();
+  }
+  // The clock starts when Street View (or the offline scene) is ready and runs through learning screens, but not the pause menu.
+  function startClock(id) {
+    if (!round.active || round.started || id !== round.id) return;
+    round.started = true; updateHud();
+    round.timer = setInterval(() => {
+      if (state === "paused" || state === "menu") return;
+      round.left -= 1; updateHud();
+      if (round.left <= 0) gameOver();
+    }, 1000);
+  }
+  function endRound() { clearInterval(round.timer); round.active = false; }
+  function gameOver() {
+    endRound(); state = "gameover";
+    $("globe").hidden = true; $("wordpop").hidden = true; $("selbox").hidden = true; $("toast").hidden = true;
+    show(`<h1>⏱ Time's up!</h1><h2>Score: ${roundScore()}</h2><p>Objects identified: <b>${round.identified}</b><br>Words learned: <b>${round.learned}</b></p><button id="again">PLAY AGAIN</button><button id="quit" class="secondary">QUIT TO MAIN MENU</button>`);
+    $("again").onclick = () => startGame();
+    $("quit").onclick = () => { hide(); mainMenu(); };
+  }
   const nativeLang = () => settings().native || "en";
   function langSelect(id, cur, label) {
     return `<select id="${id}" aria-label="${label || "Language"}">${Object.entries(W.LANGUAGES).map(([k, v]) => `<option value="${k}"${k === cur ? " selected" : ""}>${v}</option>`).join("")}</select>`;
@@ -27,29 +62,32 @@
 
   /* ---------- menus ---------- */
   function mainMenu() {
-    state = "menu"; $("hud").hidden = true; $("globe").hidden = true;
-    show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>`);
-    $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); $("lb").onclick = () => leaderboard(mainMenu);
+    state = "menu"; endRound(); $("hud").hidden = true; $("globe").hidden = true;
+    show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>` : ""}`);
+    $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); if ($("lb")) $("lb").onclick = () => leaderboard(mainMenu);
   }
+  const MINUTES = [1, 2, 3, 5, 10, 15];
+  const minutesSelect = (cur) => `<select id="minutes" aria-label="Time limit">${MINUTES.map((m) => `<option value="${m}"${m === (cur || 3) ? " selected" : ""}>${m} minute${m > 1 ? "s" : ""}</option>`).join("")}</select>`;
   function langPrompt() {
-    show(`<h2>Language to Learn</h2><label>I want to learn:</label>${langSelect("lang", settings().lang, "Language to learn")}<label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}<button id="go">START</button><button id="back" class="secondary">Back</button>`);
-    $("go").onclick = () => { persist((u) => { const s = u.settings || u; s.lang = $("lang").value; s.native = $("native").value; }); startGame(); };
+    show(`<h2>Language to Learn</h2><label>I want to learn:</label>${langSelect("lang", settings().lang, "Language to learn")}<label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}<label>Time limit:</label>${minutesSelect(settings().minutes)}<button id="go">START</button><button id="back" class="secondary">Back</button>`);
+    $("go").onclick = () => { persist((u) => { const s = u.settings || u; s.lang = $("lang").value; s.native = $("native").value; s.minutes = +$("minutes").value; }); startGame(); };
     $("back").onclick = mainMenu;
   }
   function pauseMenu() {
     state = "paused";
-    show(`<h2>Paused</h2><button id="cont">CONTINUE</button><button id="settings" class="secondary">SETTINGS</button><button id="lb" class="secondary">LEADERBOARD</button><button id="quit" class="danger">QUIT</button>`);
-    $("cont").onclick = resume; $("settings").onclick = () => settingsMenu(pauseMenu); $("lb").onclick = () => leaderboard(pauseMenu);
-    $("quit").onclick = () => { hide(); mainMenu(); };
+    show(`<h2>Paused</h2><button id="cont">CONTINUE</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button>` : ""}<button id="quit" class="danger">QUIT</button>`);
+    $("cont").onclick = resume; $("settings").onclick = () => settingsMenu(pauseMenu); if ($("lb")) $("lb").onclick = () => leaderboard(pauseMenu);
+    $("quit").onclick = () => { endRound(); hide(); mainMenu(); };
   }
   function resume() { hide(); state = "playing"; }
   function settingsMenu(back) {
     const s = settings();
     const cb = (k, t) => `<label class="row"><input type="checkbox" data-k="${k}"${s[k] ? " checked" : ""}> ${t}</label>`;
-    show(`<h2>Settings</h2><h3>Accessibility</h3>${cb("highContrast", "High contrast menus")}${cb("largeText", "Large text")}${cb("reduceMotion", "Reduce motion")}<h3>Languages</h3><label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}<button id="acct">ACCOUNT MANAGEMENT</button><button id="back" class="secondary">Back</button>`);
+    show(`<h2>Settings</h2><h3>Accessibility</h3>${cb("highContrast", "High contrast menus")}${cb("largeText", "Large text")}${cb("reduceMotion", "Reduce motion")}<h3>Languages</h3><label>My native language:</label>${langSelect("native", nativeLang(), "Native language")}${ACCOUNTS ? `<button id="acct">ACCOUNT MANAGEMENT</button>` : ""}<button id="back" class="secondary">Back</button>`);
     panel.querySelectorAll("input[data-k]").forEach((i) => (i.onchange = () => { persist((u) => { (u.settings || u)[i.dataset.k] = i.checked; }); applySettings(); }));
     $("native").onchange = () => persist((u) => { (u.settings || u).native = $("native").value; });
-    $("acct").onclick = () => accountMenu(() => settingsMenu(back)); $("back").onclick = back;
+    if ($("acct")) $("acct").onclick = () => accountMenu(() => settingsMenu(back));
+    $("back").onclick = back;
   }
   function accountMenu(back) {
     const u = user();
@@ -83,17 +121,41 @@
   /* ---------- learning screen ---------- */
   const wordLabel = (o, l) => W.labelFor(o, l);
   // Intro: just the object's name (in the language being learned and in the player's native language). "Learn" starts the exercises.
-  function learn(obj, lang) {
+  function learn(obj, lang, note) {
     state = "learning";
     const done = W.isLearned(progress(), obj.id, lang), nat = nativeLang();
     const thumb = obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`;
     const textBlock = obj.text ? `<div class="signtext"><h3>Text found</h3><p id="txt" class="words">${wordsHtml(obj.text)}</p><p id="txtTr" class="msg">Translating…</p><small>Tap a word to see what it means.</small></div>` : "";
-    show(`${langSelect("lang", lang)}${thumb}<h2>${esc(wordLabel(obj, lang))}</h2>${nat !== lang ? `<p class="native">${esc(wordLabel(obj, nat))} <small>(${esc(W.LANGUAGES[nat])})</small></p>` : ""}${done ? `<p class="ok">✔ Learned! (+${W.POINTS_PER_WORD} pts)</p>` : ""}${textBlock}${done ? "" : `<button id="learn">Learn</button>`}${obj.dynamic ? `<button id="mis" class="secondary">Misidentified</button>` : ""}<button id="close" class="secondary">Close</button>`);
+    show(`${langSelect("lang", lang)}${thumb}${note ? `<p class="ok">${esc(note)}</p>` : ""}<h2>${esc(wordLabel(obj, lang))}</h2>${nat !== lang ? `<p class="native">${esc(wordLabel(obj, nat))} <small>(${esc(W.LANGUAGES[nat])})</small></p>` : ""}${done ? `<p class="ok">✔ Learned! (+${W.POINTS_PER_WORD} pts)</p>` : ""}${textBlock}${done ? "" : `<button id="learn">Learn</button>`}${obj.dynamic ? `<button id="mis" class="secondary">Misidentified</button>` : ""}<button id="close" class="secondary">Close</button>`);
     $("lang").onchange = () => learn(obj, $("lang").value);
     $("close").onclick = () => { hide(); state = "playing"; };
     if ($("learn")) $("learn").onclick = () => exercise(obj, lang);
     if ($("mis")) $("mis").onclick = () => misidentified(obj, lang);
     if (obj.text) wireText(obj, lang);
+  }
+  // A highlighted object first asks the player to name it (3 attempts, or REVEAL), then shows the name and offers the exercises.
+  function encounter(obj) {
+    const lang = settings().lang;
+    if (W.isLearned(progress(), obj.id, lang)) return learn(obj, lang, "You already know this one!");
+    guess(obj, lang, 0);
+  }
+  function guess(obj, lang, tries) {
+    state = "learning";
+    const t = obj[lang], left = W.GUESS_ATTEMPTS - tries;
+    const thumb = obj.thumb ? `<img class="thumb" alt="" src="${obj.thumb}">` : `<div class="big">${obj.e}</div>`;
+    const hint = tries ? ` Hint: it starts with <b>${esc([...(lang === "ja" ? W.jaInfo(t).r || t.w : t.w)][0])}</b>.` : "";
+    show(`${thumb}<h2>What is this?</h2><p>Type its name in ${esc(W.LANGUAGES[lang])}. ${left} attempt${left > 1 ? "s" : ""} left.${hint}</p><input id="ans" autocomplete="off" autocapitalize="off"><button id="chk">Guess</button><p class="msg" id="msg"></p><button id="reveal" class="secondary">REVEAL</button><button id="close" class="secondary">Close</button>`);
+    $("close").onclick = () => { hide(); state = "playing"; };
+    $("reveal").onclick = () => learn(obj, lang, "Revealed!");
+    const chk = () => {
+      if (W.checkSpelling(obj, lang, $("ans").value)) {
+        persist((u) => W.addPoints(u.progress || u, W.GUESS_BONUS)); round.identified++; updateHud();
+        learn(obj, lang, "✔ Correct! +" + W.GUESS_BONUS + " bonus points");
+      } else if (tries + 1 >= W.GUESS_ATTEMPTS) learn(obj, lang, "Not quite. Here is the answer:");
+      else guess(obj, lang, tries + 1);
+    };
+    $("chk").onclick = chk; $("ans").onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") chk(); };
+    $("ans").focus();
   }
   function exercise(obj, lang) {
     state = "learning";
@@ -107,7 +169,7 @@
       let newly = false;
       persist((u) => { newly = W.completeStep(u.progress || u, obj.id, lang, step); });
       if (newly && obj.spot) Spots.add(Object.assign({ words: { en: obj.en.w, es: obj.es.w, ja: obj.ja.w, jaReading: W.jaInfo(obj.ja) }, thumb: obj.thumb, text: obj.text }, obj.spot));
-      if (newly) { $("score").textContent = progress().score + " pts"; renderObjects(); }
+      if (newly) { round.learned++; updateHud(); renderObjects(); }
       next(newly);
     };
     const steps = (progress().steps || {})[obj.id + ":" + lang] || {};
@@ -125,10 +187,16 @@
       const chk = () => (W.checkSpelling(obj, lang, $("ans").value) ? complete("spell", finish) : ($("msg").textContent = "Not quite — it was " + wordLabel(obj, lang) + ". Try again!"));
       $("chk").onclick = chk; $("ans").onkeydown = (e) => { e.stopPropagation(); if (e.key === "Enter") chk(); };
     } else {
-      show(`${head}<small>${mark}</small>${choices(`<p>Complete the sentence:</p><h3>${esc(W.fillSentence(obj, lang))}</h3>`)}${close}`); wire(); pick("sentence");
+      show(`${head}<small>${mark}</small><p>Write your own sentence using <b>${esc(wordLabel(obj, lang))}</b>. Longer, richer sentences earn more points (up to ${W.MAX_SENTENCE_POINTS}).</p><small>Example: ${esc(t.s.replace("{}", t.w))}</small><textarea id="sent" rows="3" autocomplete="off"></textarea><button id="chk">Submit</button><p class="msg" id="msg"></p>${close}`); wire();
+      const chk = () => {
+        const r = W.scoreSentence($("sent").value, obj, lang);
+        if (!r.ok) return ($("msg").textContent = r.reason);
+        persist((u) => W.addPoints(u.progress || u, r.points)); updateHud();
+        complete("sentence", (newly) => { show(`${langSelect("lang", lang)}${thumb}<h2>${esc(wordLabel(obj, lang))}</h2><p class="ok">+${r.points} sentence points${newly ? " · 🎉 Learned! +" + W.POINTS_PER_WORD : ""}</p>${close}`); wire(); });
+      };
+      $("chk").onclick = chk; $("sent").onkeydown = (e) => e.stopPropagation();
     }
   }
-
   /* ---- text found on the object: translation + clickable words ---- */
   function segments(text, locale) {
     const out = [];
@@ -196,7 +264,7 @@
       b.className = "spot"; b.setAttribute("aria-label", s.words.en);
       b.style.left = x * 100 + "%"; b.style.top = y * 100 + "%";
       b.innerHTML = `<img alt="" src="${s.thumb}">`;
-      b.onclick = () => state === "playing" && learn(W.fromWords(s.words, s.thumb, s.text), settings().lang);
+      b.onclick = () => state === "playing" && encounter(W.fromWords(s.words, s.thumb, s.text));
       box.appendChild(b);
     }
   }
@@ -215,14 +283,14 @@
       b.textContent = o.e; b.setAttribute("aria-label", o.en.w);
       b.style.left = (50 + (rel / FOV) * 100) + "%"; b.style.top = (55 + depth * 35) + "%";
       b.style.fontSize = Math.max(32, Math.min(w, h) * 0.18 * depth) + "px";
-      b.onclick = () => state === "playing" && learn(o, settings().lang);
+      b.onclick = () => state === "playing" && encounter(o);
       box.appendChild(b);
     }
   }
   // Google calls this when the key is rejected (e.g. ApiNotActivatedMapError): fall back to the offline scene.
   window.gm_authFailure = () => {
     console.warn("Google Maps rejected the API key; using the offline street scene. Enable 'Maps JavaScript API' (and billing) for the key's project.");
-    svReady = false; CFG.googleMapsApiKey = "";
+    svReady = false; CFG.googleMapsApiKey = ""; startClock(round.id);
     $("pano").style.display = "none"; $("scene").style.display = ""; $("scene").style.background = "";
     $("sky").style.display = $("ground").style.display = ""; renderObjects();
   };
@@ -239,14 +307,15 @@
   const CITIES = [[35.6595, 139.7005], [40.4168, -3.7038], [51.5074, -0.1278], [19.4326, -99.1332], [34.6937, 135.5023], [41.3851, 2.1734], [40.7128, -74.006], [-34.6037, -58.3816]];
   async function startGame() {
     hide(); state = "playing"; $("hud").hidden = false;
-    $("score").textContent = progress().score + " pts";
+    beginRound(settings().minutes || 3); const rid = round.id;
     loc = { key: Math.floor(Math.random() * 1e6) + "," + Math.floor(Math.random() * 1e6), heading: Math.random() * 360 };
     $("pano").style.display = "none"; $("scene").style.display = ""; svReady = false;
     renderObjects();
-    if (!(await loadMaps())) return;
-    try { await google.maps.importLibrary("streetView"); } catch (e) { return; }
+    if (!(await loadMaps())) return startClock(rid);
+    try { await google.maps.importLibrary("streetView"); } catch (e) { return startClock(rid); }
     const c = CITIES[Math.floor(Math.random() * CITIES.length)];
-    dropIn({ lat: c[0] + (Math.random() - 0.5) * 0.02, lng: c[1] + (Math.random() - 0.5) * 0.02 }, 2000);
+    await dropIn({ lat: c[0] + (Math.random() - 0.5) * 0.02, lng: c[1] + (Math.random() - 0.5) * 0.02 }, 2000);
+    startClock(rid);
   }
   // Drop into the nearest Street View panorama to a position; resolves true on success.
   function dropIn(pos, radius) {
@@ -383,11 +452,11 @@
       obj.candidates = res.candidates; obj.candIdx = 0;
       obj.spot = { pano, heading: (pov.heading + Math.atan((cx - 0.5) * 2) / rad + 360) % 360, pitch: pov.pitch + Math.atan(-(cy - 0.5) * 2 * (r.height / r.width)) / rad };
       $("toast").hidden = true;
-      if (state === "playing") learn(obj, settings().lang);
+      if (state === "playing") encounter(obj);
     } catch (err) { flash("Couldn't identify that: " + err.message, 6000); }
     busy = false;
   }
   $("gear").onclick = () => { if (state === "globe") closeGlobe(); if (state === "playing") pauseMenu(); };
   addEventListener("resize", renderObjects);
-  applySettings(); mainMenu(); A.probe().then(() => A.refresh()).then(() => { applySettings(); if (state === "menu") mainMenu(); });
+  applySettings(); mainMenu(); if (ACCOUNTS) A.probe().then(() => A.refresh()).then(() => { applySettings(); if (state === "menu") mainMenu(); });
 })();
