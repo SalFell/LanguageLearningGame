@@ -1,0 +1,45 @@
+const assert = require("assert");
+const W = require("../js/words.js");
+const car = W.OBJECTS[0];
+assert(W.checkSpelling(car, "es", " COCHE "));
+assert(W.checkSpelling(W.OBJECTS[1], "es", "arbol"));
+assert(W.checkSpelling(car, "ja", "kuruma") && W.checkSpelling(car, "ja", "くるま"));
+assert(!W.checkSpelling(car, "en", "cart"));
+const p = W.newProgress();
+assert(!W.completeStep(p, "car", "en", "recognize"));
+assert(!W.completeStep(p, "car", "en", "spell"));
+assert(!W.isLearned(p, "car", "en"));
+assert(W.completeStep(p, "car", "en", "sentence"));
+assert(W.isLearned(p, "car", "en") && !W.isLearned(p, "car", "es"));
+assert.strictEqual(p.score, W.POINTS_PER_WORD);
+assert(!W.completeStep(p, "car", "en", "spell")); // no double points
+assert.strictEqual(p.score, W.POINTS_PER_WORD);
+assert(W.options(car, "en", W.seededRandom(1)).includes("car"));
+const known = W.fromWords({ en: "Car", es: "x", ja: "y" }, "t");
+assert.strictEqual(known.id, "car"); assert.strictEqual(known.thumb, "t");
+const dyn = W.fromWords({ en: "Fire Hydrant", es: "boca de incendios", ja: "消火栓" }, "t");
+assert.strictEqual(dyn.id, "x_fire_hydrant");
+assert(W.checkSpelling(dyn, "ja", "消火栓") && W.checkSpelling(dyn, "es", "Boca de incendios"));
+assert(!W.options(dyn, "es", W.seededRandom(2)).slice().sort().some((v, i, a) => v === a[i - 1]));
+const p2 = W.newProgress(); ["recognize", "spell", "sentence"].forEach((s) => W.completeStep(p2, dyn.id, "es", s));
+assert(W.isLearned(p2, dyn.id, "es"));
+assert.strictEqual(W.kanaToRomaji("じてんしゃ"), "jitensha");
+assert.strictEqual(W.kanaToRomaji("ラーメン"), "raamen");
+assert.strictEqual(W.kanaToRomaji("がっこう"), "gakkou");
+assert.strictEqual(W.labelFor(car, "ja"), "くるま · kuruma");
+assert(W.checkSpelling(car, "ja", "クルマ")); // katakana input matches hiragana reading
+const kanji = W.fromWords({ en: "station", es: "estación", ja: "駅", jaReading: { k: "えき", r: "eki" } }, "t", { original: "駅前", locale: "ja" });
+assert.strictEqual(W.labelFor(kanji, "ja"), "駅（えき） · eki");
+assert(W.checkSpelling(kanji, "ja", "eki") && W.checkSpelling(kanji, "ja", "えき") && W.checkSpelling(kanji, "ja", "駅"));
+assert.strictEqual(kanji.text.original, "駅前");
+const sc = (s, o, l) => W.scoreSentence(s, o, l);
+assert(!sc("I like it", car, "en").ok); // no target word
+assert(!sc("car", car, "en").ok && /longer/.test(sc("my car", car, "en").reason));
+assert.strictEqual(sc("I drive my car to work.", car, "en").points, 40);
+assert(sc("I drive my cars to work.", car, "en").ok);
+assert(sc("Un coche muy rapido pasa", car, "es").ok && sc("Mi árbol es alto hoy", W.OBJECTS[1], "es").ok);
+assert(sc("くるまで会社に行きます。", car, "ja").ok && sc("kuruma de kaisha ni ikimasu", car, "ja").ok);
+assert(sc("a b c d e f g h i j k l m n o p car", car, "en").points <= 100);
+assert(sc("the quick brown fox jumps over my big red car today yes", car, "en").points > sc("I drive my car to work.", car, "en").points);
+const pp = W.newProgress(); W.addPoints(pp, W.GUESS_BONUS); assert.strictEqual(pp.score, 50);
+console.log("ok");

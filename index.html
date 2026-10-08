@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Vocab Venture</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="world" class="gray">
+  <div id="pano"></div>
+  <div id="scene"><div id="sky"></div><div id="ground"></div><div id="objects"></div></div>
+</div>
+<div id="hud" hidden>
+  <span id="score">0 pts</span><span id="timer">⏱</span>
+  <button id="selectBtn" aria-label="Select mode: drag a box around an object to identify it">🔍</button>
+  <button id="globeBtn" aria-label="Global view (G or scroll out)">🌍</button>
+  <button id="gear" aria-label="Pause menu">⚙</button>
+</div>
+<div id="globe" hidden><div id="globeMap"></div><div id="globeBar"><span id="globeMsg"></span><button id="globeBack">Back to street</button></div></div>
+<div id="toast" hidden></div>
+<div id="selbox" hidden></div>
+<div id="wordpop" hidden><div id="wordpopBox"><div id="wordpopBody"></div><button id="wordpopClose">Close</button></div></div>
+<div id="overlay" hidden><div id="panel"></div></div>
+<script src="config.js"></script>
+<script src="js/words.js"></script>
+<script src="js/accounts.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/japanese.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
