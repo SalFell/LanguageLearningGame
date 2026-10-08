@@ -1,0 +1,12 @@
+{
+  "name": "vocab-venture",
+  "version": "1.0.0",
+  "description": "Learn words by exploring Google Street View",
+  "private": true,
+  "scripts": {
+    "test": "node test/words.test.js && node test/geo.test.js && node test/server.test.js",
+    "build:itch": "node scripts/build-itch.js",
+    "server": "node server/server.js"
+  },
+  "license": "MIT"
+}
