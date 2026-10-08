@@ -237,12 +237,24 @@
     A.report({ wrong, candidates: obj.candidates || [], thumb: obj.thumb, spot: obj.spot, text: obj.text && obj.text.original, lang: settings().lang });
     flash("Thanks — reported. Trying another guess…", 4000);
     let next = (obj.candidates || []).slice((obj.candIdx || 0) + 1)[0], idx = (obj.candIdx || 0) + 1;
-    if (!next) { next = (prompt("Sorry about that! What is this object? (type its English name)") || "").trim(); idx = (obj.candidates || []).length; if (!next) return learn(obj, lang); }
+    if (!next) {
+      idx = (obj.candidates || []).length;
+      show(`<h2>Sorry about that!</h2><p>What is this object? Type its English name.</p><input id="mname" maxlength="40" autocomplete="off"><button id="mgo">OK</button><button id="mskip" class="secondary">Cancel</button>`);
+      $("mname").focus();
+      return new Promise((done) => {
+        const go = () => { const v = $("mname").value.trim(); if (!v) return; done(retry(v, idx)); };
+        $("mgo").onclick = go; $("mname").onkeydown = (e) => e.key === "Enter" && go();
+        $("mskip").onclick = () => done(learn(obj, lang));
+      });
+    }
+    return retry(next, idx);
+    async function retry(next, idx) {
     try {
       const o2 = W.fromWords(await Vision.wordsFor(next), obj.thumb, obj.text);
       o2.spot = obj.spot; o2.candidates = (obj.candidates || []).concat(next === obj.candidates?.[idx] ? [] : [next]); o2.candIdx = Math.min(idx, o2.candidates.length - 1);
       learn(o2, lang);
     } catch (e) { flash("Couldn't look that up: " + e.message, 5000); learn(obj, lang); }
+    }
   }
 
   /* ---------- world ---------- */

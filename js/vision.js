@@ -5,10 +5,14 @@
   const SKIP = new Set(["photograph", "sky", "cloud", "image", "snapshot", "property", "asphalt", "road surface", "daytime", "morning", "nature", "line", "urban area", "infrastructure"]);
 
   function loadImage(url) {
-    return new Promise((res, rej) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => rej(new Error("Could not fetch the Street View image (enable the Street View Static API for your key).")); i.src = url; });
+    return new Promise((res, rej) => { const i = new Image(); setTimeout(() => rej(new Error("Timed out fetching the Street View image.")), 15000); i.crossOrigin = "anonymous"; i.onload = () => res(i); i.onerror = () => rej(new Error("Could not fetch the Street View image (enable the Street View Static API for your key).")); i.src = url; });
   }
   async function post(url, body) {
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+    let r;
+    try { r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal }); }
+    catch (e) { throw new Error(e.name === "AbortError" ? "The request timed out. Check your connection and that the API is enabled for your key." : e.message); }
+    finally { clearTimeout(timer); }
     const j = await r.json().catch(() => ({}));
     if (!r.ok || (j.error)) throw new Error((j.error && j.error.message) || "Request failed (" + r.status + ")");
     return j;
@@ -54,7 +58,8 @@
   // English name -> {en, es, ja, jaReading}
   async function wordsFor(en) {
     const [es, ja] = await Promise.all([translate(en, "es", "en"), translate(en, "ja", "en")]);
-    const jaReading = root.Japanese ? await root.Japanese.reading(ja.t) : {};
+    // kanji readings need a large dictionary download; never let that hold up the answer (it keeps loading in the background)
+    const jaReading = root.Japanese ? await Promise.race([root.Japanese.reading(ja.t), new Promise((r) => setTimeout(() => r({}), 2500))]) : {};
     return { en: en.toLowerCase(), es: es.t.toLowerCase(), ja: ja.t, jaReading };
   }
 
