@@ -56,3 +56,5 @@ body.selecting #world{cursor:crosshair}
 table.info th{text-align:left;vertical-align:top;color:#9cf;padding:6px 8px 6px 0;white-space:nowrap;border-bottom:1px solid #444}
 table.info td{text-align:left!important;border-bottom:1px solid #444}
 #panel textarea{display:block;width:100%;margin:8px 0;padding:12px;font:inherit;border-radius:10px;border:2px solid #666;background:#333;color:#fff;resize:vertical}
+
+.howto{text-align:left;max-height:60vh;overflow:auto}.howto h3{margin:.8em 0 .2em;font-size:1em}.howto p{margin:0;font-size:.9em}

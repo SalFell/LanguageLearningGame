@@ -61,10 +61,18 @@
   }
 
   /* ---------- menus ---------- */
+  function howToPlay(back) {
+    show(`<h2>How to Play</h2><div class="howto">
+<h3>🧭 Navigate</h3><p>Move like in Google Maps: click the road or the arrows on the ground, or use ↑/↓. Drag to look around. Scroll to zoom; keep scrolling out to see the street, city, country and world, then click anywhere on the globe (🌍 or G) to drop into Street View.</p>
+<h3>🔍 Highlight objects</h3><p>Right-click and drag a box around an object (on touch screens, tap 🔍 first, then drag). The game identifies it.</p>
+<h3>⭐ Earn points</h3><p>Guess the object's name in your learning language: +50 for a correct answer (3 tries; REVEAL skips). Then press Learn: recognize the word, spell it, and write your own sentence. Finishing all three gives +100, and longer sentences earn up to +100 more.</p>
+<h3>⏱ Beat the clock</h3><p>Score as many points as you can before time runs out. TAB or ⚙ pauses.</p></div><button id="back">BACK</button>`);
+    $("back").onclick = back;
+  }
   function mainMenu() {
     state = "menu"; endRound(); $("hud").hidden = true; $("globe").hidden = true;
-    show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>` : ""}`);
-    $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); if ($("lb")) $("lb").onclick = () => leaderboard(mainMenu);
+    show(`<h1>🌍 Vocab Venture</h1><button id="play">PLAY</button><button id="howto" class="secondary">HOW TO PLAY</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button><p>${user() ? "Signed in as " + esc(user().name) : "Playing as guest"}</p>` : ""}`);
+    $("howto").onclick = () => howToPlay(mainMenu); $("play").onclick = langPrompt; $("settings").onclick = () => settingsMenu(mainMenu); if ($("lb")) $("lb").onclick = () => leaderboard(mainMenu);
   }
   const MINUTES = [1, 2, 3, 5, 10, 15];
   const minutesSelect = (cur) => `<select id="minutes" aria-label="Time limit">${MINUTES.map((m) => `<option value="${m}"${m === (cur || 3) ? " selected" : ""}>${m} minute${m > 1 ? "s" : ""}</option>`).join("")}</select>`;
@@ -75,8 +83,8 @@
   }
   function pauseMenu() {
     state = "paused";
-    show(`<h2>Paused</h2><button id="cont">CONTINUE</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button>` : ""}<button id="quit" class="danger">QUIT</button>`);
-    $("cont").onclick = resume; $("settings").onclick = () => settingsMenu(pauseMenu); if ($("lb")) $("lb").onclick = () => leaderboard(pauseMenu);
+    show(`<h2>Paused</h2><button id="cont">CONTINUE</button><button id="howto" class="secondary">HOW TO PLAY</button><button id="settings" class="secondary">SETTINGS</button>${ACCOUNTS ? `<button id="lb" class="secondary">LEADERBOARD</button>` : ""}<button id="quit" class="danger">QUIT</button>`);
+    $("howto").onclick = () => howToPlay(pauseMenu); $("cont").onclick = resume; $("settings").onclick = () => settingsMenu(pauseMenu); if ($("lb")) $("lb").onclick = () => leaderboard(pauseMenu);
     $("quit").onclick = () => { endRound(); hide(); mainMenu(); };
   }
   function resume() { hide(); state = "playing"; }
