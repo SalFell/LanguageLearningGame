@@ -124,6 +124,6 @@
     if (words.jaReading) { o.ja.k = words.jaReading.k; o.ja.r = words.jaReading.r; }
     return o;
   }
-  const api = { GUESS_BONUS, GUESS_ATTEMPTS, addPoints, sentenceTokens, containsWord, scoreSentence, toHiragana, isKana, kanaToRomaji, jaInfo, labelFor, optionObjects, fromWords, LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
+  const api = { MAX_SENTENCE_POINTS, GUESS_BONUS, GUESS_ATTEMPTS, addPoints, sentenceTokens, containsWord, scoreSentence, toHiragana, isKana, kanaToRomaji, jaInfo, labelFor, optionObjects, fromWords, LANGUAGES, OBJECTS, STEPS, POINTS_PER_WORD, checkSpelling, newProgress, completeStep, isLearned, fillSentence, seededRandom, hash, options };
   if (typeof module !== "undefined") module.exports = api; else root.Words = api;
 })(typeof window !== "undefined" ? window : globalThis);
