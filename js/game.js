@@ -28,6 +28,13 @@
   function show(html) { panel.innerHTML = html; overlay.hidden = false; }
   // Keep typing inside panel fields from reaching game/Street View shortcuts (matters when embedded in an iframe, e.g. itch.io).
   ["keydown", "keyup", "keypress"].forEach((t) => panel.addEventListener(t, (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) e.stopPropagation(); }));
+  // If focus is lost to the page body while a text field is showing, typing goes back to that field.
+  addEventListener("keydown", (e) => {
+    if (overlay.hidden || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+    if (panel.contains(e.target) && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    const f = panel.querySelector("input:not([type=checkbox]),textarea");
+    if (f && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) f.focus();
+  }, true);
   panel.addEventListener("pointerdown", (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) { try { window.focus(); } catch (_) {} e.target.focus(); } });
   function hide() { overlay.hidden = true; panel.innerHTML = ""; }
   /* ---------- round: timer, score, game over ---------- */
