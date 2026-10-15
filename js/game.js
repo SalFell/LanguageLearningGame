@@ -26,6 +26,9 @@
     document.body.classList.toggle("reduce-motion", !!s.reduceMotion);
   }
   function show(html) { panel.innerHTML = html; overlay.hidden = false; }
+  // Keep typing inside panel fields from reaching game/Street View shortcuts (matters when embedded in an iframe, e.g. itch.io).
+  ["keydown", "keyup", "keypress"].forEach((t) => panel.addEventListener(t, (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) e.stopPropagation(); }));
+  panel.addEventListener("pointerdown", (e) => { if (/INPUT|TEXTAREA/.test(e.target.tagName)) { try { window.focus(); } catch (_) {} e.target.focus(); } });
   function hide() { overlay.hidden = true; panel.innerHTML = ""; }
   /* ---------- round: timer, score, game over ---------- */
   const round = { id: 0, active: false, started: false, left: 0, total: 0, startScore: 0, identified: 0, learned: 0, timer: null };
@@ -248,7 +251,7 @@
     if (!next) {
       idx = (obj.candidates || []).length;
       show(`<h2>Sorry about that!</h2><p>What is this object? Type its English name.</p><input id="mname" maxlength="40" autocomplete="off"><button id="mgo">OK</button><button id="mskip" class="secondary">Cancel</button>`);
-      $("mname").focus();
+      setTimeout(() => $("mname") && $("mname").focus(), 0);
       return new Promise((done) => {
         const go = () => { const v = $("mname").value.trim(); if (!v) return; done(retry(v, idx)); };
         $("mgo").onclick = go; $("mname").onkeydown = (e) => e.key === "Enter" && go();
