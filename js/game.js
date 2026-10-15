@@ -261,7 +261,7 @@
       setTimeout(() => $("mname") && $("mname").focus(), 0);
       return new Promise((done) => {
         const go = () => { const v = $("mname").value.trim(); if (!v) return; done(retry(v, idx)); };
-        $("mgo").onclick = go; $("mname").onkeydown = (e) => e.key === "Enter" && go();
+        $("mgo").onclick = go; $("mname").onkeydown = (e) => { if (e.key === "Enter") go(); };
         $("mskip").onclick = () => done(learn(obj, lang));
       });
     }
