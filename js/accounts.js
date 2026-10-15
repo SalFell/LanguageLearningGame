@@ -13,8 +13,11 @@
 
   const CFG = root.GAME_CONFIG || {};
   let backendDown = false; // set when the API isn't reachable (e.g. page served by a plain static server)
-  const remote = () => !backendDown && typeof CFG.apiUrl === "string" && (CFG.apiUrl !== "" || /^https?:/.test(root.location.protocol));
+  const remote = () => !backendDown && typeof CFG.apiUrl === "string" && (CFG.apiUrl !== "" || (/^https?:/.test(root.location.protocol) && !/\.itch\.(zone|io)$/.test(root.location.hostname)));
   const TOKEN = "llg_token";
+  function saveLocal(r) {
+    try { const a = JSON.parse(localStorage.getItem("llg_reports")) || []; a.push(Object.assign({ at: Date.now() }, r)); localStorage.setItem("llg_reports", JSON.stringify(a.slice(-100))); } catch (e) { /* full */ }
+  }
   async function call(method, path, body) {
     const t = localStorage.getItem(TOKEN);
     const r = await fetch(CFG.apiUrl + path, { method, headers: Object.assign({ "Content-Type": "application/json" }, t ? { Authorization: "Bearer " + t } : {}), body: body ? JSON.stringify(body) : undefined });
@@ -86,8 +89,8 @@
     remote,
     // Misidentified-object report: sent to the backend when available, otherwise kept on this device.
     report(r) {
-      if (remote()) { call("POST", "/api/misidentified", r).catch(() => {}); return; }
-      try { const a = JSON.parse(localStorage.getItem("llg_reports")) || []; a.push(Object.assign({ at: Date.now() }, r)); localStorage.setItem("llg_reports", JSON.stringify(a.slice(-100))); } catch (e) { /* full */ }
+      if (remote()) { call("POST", "/api/misidentified", r).catch(() => saveLocal(r)); return; }
+      saveLocal(r);
     },
     async probe() { if (!remote()) return; try { const r = await fetch(CFG.apiUrl + "/api/leaderboard"); if (!r.ok || !(await r.json()).leaderboard) backendDown = true; } catch (e) { backendDown = true; } },
     logout() { localStorage.removeItem(SESSION); localStorage.removeItem(TOKEN); },
