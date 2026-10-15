@@ -7,7 +7,7 @@ window.GAME_CONFIG = {
   // served by the backend; use null to run fully offline with on-device accounts and a local leaderboard.
   // Single-player mode by default. Set true to re-enable accounts, sign-in and the leaderboard (needs the backend).
   enableAccounts: false,
-  apiUrl: "",
+  apiUrl: null,
   // Public OAuth client IDs (must match the server's env vars). Leave empty to hide the provider's real sign-in.
   googleClientId: "",
   appleClientId: "",
